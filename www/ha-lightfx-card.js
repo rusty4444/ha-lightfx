@@ -102,6 +102,14 @@ class HAFXLayoutCard extends LitElement {
     }
   }
 
+  _friendlyName(entityId) {
+    if (this._hass && this._hass.states[entityId]) {
+      const name = this._hass.states[entityId].attributes.friendly_name;
+      if (name) return name;
+    }
+    return entityId.split(".").pop().replace(/_/g, " ");
+  }
+
   async _callService(service, data = {}) {
     if (!this._hass) return;
     try {
@@ -194,7 +202,7 @@ class HAFXLayoutCard extends LitElement {
                   font-size="3"
                   fill="var(--primary-text-color)"
                 >
-                  ${lp.entity_id.split(".").pop().replace(/_/g, " ")}
+                  ${this._friendlyName(lp.entity_id)}
                 </text>
               </g>
             `;
