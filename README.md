@@ -62,17 +62,22 @@ A built-in custom card (`ha-lightfx-card`) provides:
 ## Setup
 
 1. Go to **Settings → Devices & Services → Add Integration** → search "HA LightFX"
-2. Create your first layout via **Developer Tools → Services**:
+2. Click **Configure** on the HA LightFX entry to open the **visual editor**
+3. Use **Manage Layouts → Create Layout** to add your first layout (e.g. "Living Room")
+4. Use **Manage Lights → pick your layout → Add Light** to add lights with grid position (x, y) and zone tag (ceiling/wall/accent/floor/other)
+5. Add the card to a dashboard: **Add Card → Custom: HA LightFX**
+
+Alternatively, everything is available via services (Developer Tools → Services):
 
 ```yaml
+# Create a layout
 service: ha_lightfx.create_layout
 data:
   name: "Living Room"
 ```
 
-3. Add lights:
-
 ```yaml
+# Add a light
 service: ha_lightfx.add_light
 data:
   layout_id: living_room
@@ -82,9 +87,8 @@ data:
   zone: ceiling
 ```
 
-4. Run an effect:
-
 ```yaml
+# Run an effect
 service: ha_lightfx.start_effect
 data:
   layout_id: living_room
@@ -93,7 +97,7 @@ data:
   speed: 40
 ```
 
-5. Add the card to a dashboard: **Add Card** → **Custom: HA LightFX**
+> The visual editor is the recommended way to manage layouts and lights — no YAML knowledge required.
 
 ## Dashboard Card Configuration
 
