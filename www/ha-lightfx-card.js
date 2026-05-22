@@ -75,19 +75,28 @@ class HAFXLayoutCard extends LitElement {
     this._infoMsg = "";
     this._dragState = null;
     this._lastConfigHash = "";
+    this._loaded = false;
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("pointermove", this._onDragMove);
+    window.removeEventListener("pointerup", this._onDragEnd);
+    this._dragState = null;
   }
 
   set hass(hass) {
     this._hass = hass;
   }
 
+  firstUpdated() {
+    this._refreshLayouts();
+    this._loaded = true;
+  }
+
   updated(changedProps) {
     super.updated(changedProps);
-    // Only refresh from WS when config first arrives or on first load
-    if (changedProps.has("config") && this.config && this.config !== {}) {
-      this._refreshLayouts();
-    }
-    if (!this._hass || this._layouts === null) {
+    if (!this._loaded && changedProps.has("config") && this.config && Object.keys(this.config).length > 0) {
       this._refreshLayouts();
     }
   }
@@ -141,7 +150,6 @@ class HAFXLayoutCard extends LitElement {
   _onDragEnd = () => {
     if (!this._dragState) return;
     const { layoutId, entityId, currentX, currentY } = this._dragState;
-    const ds = this._dragState;
     this._dragState = null;
     window.removeEventListener("pointermove", this._onDragMove);
     window.removeEventListener("pointerup", this._onDragEnd);
@@ -227,7 +235,7 @@ class HAFXLayoutCard extends LitElement {
             const state = this._hass ? this._hass.states[lp.entity_id] : null;
             const isOn = state && state.state === "on";
             return html`
-              <g @pointerdown="${(e) => this._onDragStart(e, lp)}" class="light-group">
+              <g @pointerdown="${(e) => this._onDragStart(e, lp)}" class="light-group${this._dragState?.entityId === lp.entity_id ? ' dragging' : ''}">
                 <circle
                   cx="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x}"
                   cy="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentY !== undefined ? this._dragState.currentY : lp.y}"
@@ -259,10 +267,10 @@ class HAFXLayoutCard extends LitElement {
             `;
           })}
         </svg>
-        <!-- Zone legend -->
+        <!-- Zone legend (only zones present in layout) -->
         <div class="zone-legend">
-          ${Object.entries(ZONE_COLORS).map(([z, c]) => html`
-            <span class="zone-tag"><span class="zone-swatch" style="background:${c}"></span>${z}</span>
+          ${[...new Set(lights.map((l) => l.zone || "other"))].map((z) => html`
+            <span class="zone-tag"><span class="zone-swatch" style="background:${ZONE_COLORS[z] || ZONE_COLORS.other}"></span>${z}</span>
           `)}
         </div>
       </div>
@@ -487,8 +495,20 @@ class HAFXLayoutCard extends LitElement {
       .light-group:active {
         cursor: grabbing;
       }
+      .light-group text {
+        pointer-events: none;
+      }
+      .light-group .light-glow {
+        pointer-events: none;
+      }
       .light-dot {
         transition: all 0.3s;
+      }
+      .light-dot.dragging {
+        transition: none;
+      }
+      .light-group.dragging .light-dot {
+        transition: none;
       }
       .zone-legend {
         display: flex;
