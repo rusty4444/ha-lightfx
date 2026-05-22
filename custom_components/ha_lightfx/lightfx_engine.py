@@ -66,6 +66,8 @@ class LightFXEngine:
         self._hass = hass
         self._call_service = call_service
         self._layouts: dict[str, LayoutState] = {}
+        self._profiles: dict[str, dict] = {}
+        self._groups: dict[str, list[str]] = {}
 
     # ── Layout management ──────────────────────────────────────────────
 
@@ -366,7 +368,7 @@ class LightFXEngine:
             ls.task = None
 
     def _compute_frame(self, effect: str, ls: LayoutState,
-                       tick: int) -> dict[str, dict]:
+                       tick: int, _depth: int = 0) -> dict[str, dict]:
         """Compute per-light state for this frame tick."""
         p = ls.current_params
 
@@ -381,8 +383,6 @@ class LightFXEngine:
                 if not zone_lights:
                     continue
                 # Compute zone frame on a sub-layout context
-                sub_params = dict(p)
-                sub_params["_zone_lights"] = zone_lights
                 sub_result = self._compute_frame(zone_effect, ls, tick, _depth=1)
                 # Filter result to only this zone
                 for eid, state in sub_result.items():
@@ -489,14 +489,15 @@ class LightFXEngine:
             return result
 
         elif effect == "fire":
+            rng = random.Random(hash((id(ls), tick)) & 0xFFFFFFFF)
             return {
                 lp.entity_id: {
                     "rgb_color": (
-                        min(255, max(180, int(c1[0] * (0.6 + random.random() * 0.4)))),
-                        min(255, max(60, int(c1[1] * (0.2 + random.random() * 0.2)))),
-                        min(60, int(c1[2] * random.random() * 0.15)),
+                        min(255, max(180, int(c1[0] * (0.6 + rng.random() * 0.4)))),
+                        min(255, max(60, int(c1[1] * (0.2 + rng.random() * 0.2)))),
+                        min(60, int(c1[2] * rng.random() * 0.15)),
                     ),
-                    "brightness": int(brightness * (0.7 + random.random() * 0.3)),
+                    "brightness": int(brightness * (0.7 + rng.random() * 0.3)),
                     "transition": 0.1,
                 }
                 for lp in ls.lights
@@ -515,9 +516,10 @@ class LightFXEngine:
             }
 
         elif effect == "sparkle":
+            rng = random.Random(hash((id(ls), tick)) & 0xFFFFFFFF)
             result = {}
             for lp in ls.lights:
-                if random.random() < 0.15:
+                if rng.random() < 0.15:
                     result[lp.entity_id] = {
                         "rgb_color": c1,
                         "brightness": brightness,

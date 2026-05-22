@@ -383,3 +383,15 @@ start_layout_group:
             - "forward"
             - "reverse"
             - "bounce"
+
+
+# ── List / management services ────────────────────────────────────────────
+list_profiles:
+  name: List Profiles
+  description: List all saved effect profiles.
+  fields: {}
+
+list_groups:
+  name: List Available Groups
+  description: List all layout groups.
+  fields: {}

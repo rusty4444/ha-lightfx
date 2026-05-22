@@ -82,40 +82,48 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
             data_schema=_LAYOUT_SCHEMA(),
         )
 
-    async def async_step_rename_layout(self, user_input=None):
-        """Pick a layout, then provide a new name."""
+    async def async_step_rename_layout_pick(self, user_input=None):
+        """Pick which layout to rename."""
         engine = self._engine()
+        layouts = engine.list_layouts()
+        if not layouts:
+            return self.async_abort(reason="no_layouts")
         if user_input is not None:
-            lid = self._context_storage.get("rename_layout_id")
-            if not lid:
-                lid = user_input.get("layout_id")
-                self._context_storage["rename_layout_id"] = lid
-                return self.async_show_form(
-                    step_id="rename_layout",
-                    data_schema=_LAYOUT_SCHEMA(
-                        engine.get_layout(lid).name if engine.get_layout(lid) else ""
-                    ),
-                    description_placeholders={"hint": "Enter the new name."},
-                )
-            ls = engine.get_layout(lid)
+            self._context_storage["rename_layout_id"] = user_input["layout_id"]
+            return await self.async_step_rename_layout_name(None)
+        return self.async_show_form(
+            step_id="rename_layout_pick",
+            data_schema=vol.Schema({
+                vol.Required("layout_id"): vol.In(
+                    {lid: f"{info['name']} ({info['light_count']} lights)"
+                     for lid, info in layouts.items()}
+                ),
+            }),
+            description_placeholders={"hint": "Pick the layout to rename."},
+        )
+
+    async def async_step_rename_layout_name(self, user_input=None):
+        """Enter the new name for the selected layout."""
+        engine = self._engine()
+        lid = self._context_storage.get("rename_layout_id")
+        if not lid:
+            return await self.async_step_rename_layout_pick(None)
+        ls = engine.get_layout(lid)
+        if user_input is not None:
             if ls and CONF_NAME in user_input:
                 ls.name = user_input[CONF_NAME]
                 await self._save()
             self._context_storage.pop("rename_layout_id", None)
             return self.async_create_entry(title=f"✓ Layout renamed", data={})
-
-        layouts = engine.list_layouts()
-        data_schema = vol.Schema({
-            vol.Required("layout_id"): vol.In(
-                {lid: f"{info['name']} ({info['light_count']} lights)"
-                 for lid, info in layouts.items()}
-            ),
-        })
         return self.async_show_form(
-            step_id="rename_layout",
-            data_schema=data_schema,
-            description_placeholders={"hint": "Pick the layout to rename."},
+            step_id="rename_layout_name",
+            data_schema=_LAYOUT_SCHEMA(ls.name if ls else ""),
+            description_placeholders={"hint": "Enter the new name."},
         )
+
+    # Keep original step for menu backward compat — routes to pick
+    async def async_step_rename_layout(self, user_input=None):
+        return await self.async_step_rename_layout_pick(user_input)
 
     async def async_step_delete_layout(self, user_input=None):
         """Pick a layout and confirm deletion."""
