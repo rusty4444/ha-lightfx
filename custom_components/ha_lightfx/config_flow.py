@@ -251,6 +251,7 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
                 user_input["entity_id"],
                 user_input["x"],
                 user_input["y"],
+                user_input.get("z", 0),
                 user_input.get("zone", "other"),
             )
             await self._save()
@@ -288,6 +289,8 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
                 vol.Required("x", default=existing.x):
                     vol.All(vol.Coerce(int), vol.Range(0, 100)),
                 vol.Required("y", default=existing.y):
+                    vol.All(vol.Coerce(int), vol.Range(0, 100)),
+                vol.Optional("z", default=existing.z):
                     vol.All(vol.Coerce(int), vol.Range(0, 100)),
                 vol.Optional("zone", default=existing.zone): vol.In(
                     ["ceiling", "wall", "accent", "floor", "other"]
@@ -521,6 +524,8 @@ def _LIGHT_SCHEMA():
         vol.Required("x", default=50):
             vol.All(vol.Coerce(int), vol.Range(0, 100)),
         vol.Required("y", default=50):
+            vol.All(vol.Coerce(int), vol.Range(0, 100)),
+        vol.Optional("z", default=0):
             vol.All(vol.Coerce(int), vol.Range(0, 100)),
         vol.Optional("zone", default="other"): vol.In(
             ["ceiling", "wall", "accent", "floor", "other"]

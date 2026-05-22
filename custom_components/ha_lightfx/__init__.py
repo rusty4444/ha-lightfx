@@ -184,8 +184,13 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         brightness = call.data.get("brightness", 50)
         speed = call.data.get("speed", DEFAULT_SPEED)
         transition = call.data.get("transition", DEFAULT_TRANSITION)
+        direction = call.data.get("direction", "forward")
+        audio_entity_id = call.data.get("audio_entity_id")
+        effect_per_zone = call.data.get("effect_per_zone")
 
-        engine.start_effect(lid, effect, color, color2, brightness, speed, transition)
+        engine.start_effect(lid, effect, color, color2, brightness, speed, transition,
+                            direction=direction, audio_entity_id=audio_entity_id,
+                            effect_per_zone=effect_per_zone)
 
     hass.services.async_register(
         DOMAIN, SERVICE_START_EFFECT, handle_start_effect,
@@ -203,6 +208,11 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             vol.Optional("transition", default=DEFAULT_TRANSITION): vol.All(
                 vol.Coerce(float), vol.Range(0.1, 5.0)
             ),
+            vol.Optional("direction", default="forward"): vol.In(
+                ["forward", "reverse", "bounce"]
+            ),
+            vol.Optional("audio_entity_id"): cv.string,
+            vol.Optional("effect_per_zone"): dict,
         }),
     )
 
@@ -311,6 +321,23 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             vol.Optional("speed", default=DEFAULT_SPEED): vol.All(vol.Coerce(int), vol.Range(1, 100)),
             vol.Optional("transition", default=DEFAULT_TRANSITION): vol.All(vol.Coerce(float), vol.Range(0.1, 5.0)),
             vol.Optional("direction", default="forward"): vol.In(["forward", "reverse", "bounce"]),
+        }),
+    )
+
+    # ── preview_effect ─────────────────────────────────────────────
+    async def handle_preview_effect(call: ServiceCall) -> None:
+        lid = call.data["layout_id"]
+        effect = call.data.get("effect", DEFAULT_EFFECT)
+        try:
+            result = engine.compute_frame_one(lid, effect, call.data.get("params"))
+        except ValueError:
+            return
+    hass.services.async_register(
+        DOMAIN, SERVICE_PREVIEW_EFFECT, handle_preview_effect,
+        schema=vol.Schema({
+            vol.Required("layout_id"): cv.string,
+            vol.Optional("effect", default=DEFAULT_EFFECT): cv.string,
+            vol.Optional("params"): dict,
         }),
     )
     # ── stop_effect ────────────────────────────────────────────────

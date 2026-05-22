@@ -33,11 +33,12 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class LightPoint:
-    """A light's position and state in a layout."""
+    """A light's position, state, and 3D position in a layout."""
 
     entity_id: str
     x: float  # 0.0 - 100.0
     y: float  # 0.0 - 100.0
+    z: float = 0  # optional depth axis (0=front, 100=back)
     zone: str = "other"
 
 
@@ -115,8 +116,10 @@ class LightFXEngine:
         return len(ls.lights) < before
 
     def to_storage(self) -> dict:
-        """Serialise layouts for persistent storage."""
+        """Serialise all data for persistent storage."""
         return {
+            "version": 2,
+            "layouts": {
             lid: {
                 "name": ls.name,
                 "lights": [
@@ -125,11 +128,19 @@ class LightFXEngine:
                 ],
             }
             for lid, ls in self._layouts.items()
+            },
+            "profiles": self._profiles,
+            "groups": self._groups,
         }
-
     def from_storage(self, data: dict) -> None:
-        """Restore layouts from storage. Skip corrupted entries."""
-        for lid, info in data.items():
+        """Restore all data from storage. Skip corrupted entries."""
+        if data.get("version") == 2:
+            layouts_data = data.get("layouts", {})
+            self._profiles = data.get("profiles", {})
+            self._groups = data.get("groups", {})
+        else:
+            layouts_data = data
+        for lid, info in layouts_data.items():
             try:
                 name = info.get("name", lid)
                 ls = LayoutState(name=name)
@@ -184,20 +195,19 @@ class LightFXEngine:
         ls = self._get(layout_id)
         if not ls.lights:
             return {}
-        # Store original params, apply preview params temporarily
-        orig_params = dict(ls.current_params)
+        base = dict(ls.current_params)
         if params:
-            ls.current_params.update(params)
-        ls.current_params.setdefault("color", orig_params.get("color", (255, 0, 0)))
-        ls.current_params.setdefault("color2", orig_params.get("color2", (0, 0, 255)))
-        ls.current_params.setdefault("brightness", orig_params.get("brightness", 128))
-        ls.current_params.setdefault("speed", orig_params.get("speed", 50))
-        ls.current_params.setdefault("transition", orig_params.get("transition", 0.5))
-        ls.current_params.setdefault("direction", "forward")
+            base.update(params)
+        base.setdefault("color", (255, 0, 0))
+        base.setdefault("color2", (0, 0, 255))
+        base.setdefault("brightness", 128)
+        base.setdefault("speed", 50)
+        base.setdefault("transition", 0.5)
+        base.setdefault("direction", "forward")
+        saved = ls.current_params
+        ls.current_params = base
         result = self._compute_frame(effect, ls, 0)
-        # Restore
-        ls.current_params.clear()
-        ls.current_params.update(orig_params)
+        ls.current_params = saved
         return result
     # ── Effects ────────────────────────────────────────────────────────
 
@@ -277,9 +287,11 @@ class LightFXEngine:
 
         tick = 0
         audio_level = 1.0
-        if p := ls.current_params.get("audio_entity_id"):
+        if ls.current_params.get("audio_entity_id"):
             _last_audio = ls.current_params.get("_last_audio_level", 1.0)
             audio_level = _last_audio
+            # Snapshot base brightness before any modulation
+            ls.current_params["_base_brightness"] = ls.current_params.get("brightness", 128)
 
         seq_index = 0
         seq_elapsed = 0.0
@@ -360,7 +372,7 @@ class LightFXEngine:
 
         # Zone-aware: dispatch per-zone effects
         effect_per_zone = p.get("effect_per_zone")
-        if effect_per_zone and len(effect_per_zone) > 0:
+        if effect_per_zone and len(effect_per_zone) > 0 and _depth == 0:
             result = {}
             zones_in_layout = set(lp.zone for lp in ls.lights)
             for zone in zones_in_layout:
@@ -371,7 +383,7 @@ class LightFXEngine:
                 # Compute zone frame on a sub-layout context
                 sub_params = dict(p)
                 sub_params["_zone_lights"] = zone_lights
-                sub_result = self._compute_frame(zone_effect, ls, tick)
+                sub_result = self._compute_frame(zone_effect, ls, tick, _depth=1)
                 # Filter result to only this zone
                 for eid, state in sub_result.items():
                     if any(lp.entity_id == eid for lp in zone_lights):
@@ -389,9 +401,8 @@ class LightFXEngine:
         if p.get("direction", "forward") == "reverse":
             t = -t_raw
         elif p.get("direction", "forward") == "bounce":
-            period = max(1, 100 // max(1, int(speed)))
-            phase = (t_raw / period) % 2
-            t = t_raw * (1 if phase < 1 else -1)
+            period = max(1, speed)
+            t = period - abs((int(t_raw) % (2 * period)) - period)
         else:
             t = t_raw
 
