@@ -57,6 +57,7 @@ class HAFXLayoutCard extends LitElement {
       _speed: { state: true },
       _editMode: { state: true },
       _infoMsg: { state: true },
+      _dragState: { state: true },
     };
   }
 
@@ -72,6 +73,7 @@ class HAFXLayoutCard extends LitElement {
     this._speed = 50;
     this._editMode = false;
     this._infoMsg = "";
+    this._dragState = null;
     this._lastConfigHash = "";
   }
 
@@ -109,6 +111,52 @@ class HAFXLayoutCard extends LitElement {
     }
     return entityId.split(".").pop().replace(/_/g, " ");
   }
+
+
+  _onDragStart(e, lp) {
+    e.preventDefault();
+    this._dragState = {
+      layoutId: this._selectedLayout,
+      entityId: lp.entity_id,
+      startLightX: lp.x,
+      startLightY: lp.y,
+    };
+    window.addEventListener("pointermove", this._onDragMove);
+    window.addEventListener("pointerup", this._onDragEnd);
+  }
+
+  _onDragMove = (e) => {
+    if (!this._dragState || !this._hass) return;
+    const svg = this.shadowRoot?.querySelector(".layout-svg");
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const dx = ((e.clientX - rect.left) / rect.width) * 100;
+    const dy = ((e.clientY - rect.top) / rect.height) * 100;
+    this._dragState.currentX = Math.round(Math.max(0, Math.min(100, dx)));
+    this._dragState.currentY = Math.round(Math.max(0, Math.min(100, dy)));
+    this.requestUpdate();
+  };
+
+  _onDragEnd = () => {
+    if (!this._dragState) return;
+    const { layoutId, entityId, currentX, currentY } = this._dragState;
+    const ds = this._dragState;
+    this._dragState = null;
+    window.removeEventListener("pointermove", this._onDragMove);
+    window.removeEventListener("pointerup", this._onDragEnd);
+    if (currentX === undefined) return;
+    if (this._layouts[layoutId]) {
+      const lp = (this._layouts[layoutId].lights || []).find((l) => l.entity_id === entityId);
+      this._callService("add_light", {
+        layout_id: layoutId,
+        entity_id: entityId,
+        x: currentX,
+        y: currentY,
+        zone: lp?.zone || "other",
+      });
+    }
+  };
 
   async _callService(service, data = {}) {
     if (!this._hass) return;
@@ -179,10 +227,10 @@ class HAFXLayoutCard extends LitElement {
             const state = this._hass ? this._hass.states[lp.entity_id] : null;
             const isOn = state && state.state === "on";
             return html`
-              <g>
+              <g @pointerdown="${(e) => this._onDragStart(e, lp)}" class="light-group">
                 <circle
-                  cx="${lp.x}"
-                  cy="${lp.y}"
+                  cx="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x}"
+                  cy="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentY !== undefined ? this._dragState.currentY : lp.y}"
                   r="${isOn ? 3.5 : 2.5}"
                   fill="${color}"
                   opacity="${isOn ? 1 : 0.4}"
@@ -199,8 +247,8 @@ class HAFXLayoutCard extends LitElement {
                     />`
                   : ""}
                 <text
-                  x="${lp.x}"
-                  y="${lp.y + 5}"
+                  x="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x}"
+                  y="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentY !== undefined ? this._dragState.currentY + 5 : lp.y + 5}"
                   text-anchor="middle"
                   font-size="3"
                   fill="var(--primary-text-color)"
@@ -211,6 +259,12 @@ class HAFXLayoutCard extends LitElement {
             `;
           })}
         </svg>
+        <!-- Zone legend -->
+        <div class="zone-legend">
+          ${Object.entries(ZONE_COLORS).map(([z, c]) => html`
+            <span class="zone-tag"><span class="zone-swatch" style="background:${c}"></span>${z}</span>
+          `)}
+        </div>
       </div>
     `;
   }
@@ -427,9 +481,35 @@ class HAFXLayoutCard extends LitElement {
         height: auto;
         aspect-ratio: 1;
       }
+      .light-group {
+        cursor: grab;
+      }
+      .light-group:active {
+        cursor: grabbing;
+      }
       .light-dot {
         transition: all 0.3s;
-        cursor: pointer;
+      }
+      .zone-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 6px 4px 0;
+        justify-content: center;
+      }
+      .zone-tag {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        text-transform: capitalize;
+      }
+      .zone-swatch {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
       }
       .light-glow {
         animation: pulse 2s ease-in-out infinite;
