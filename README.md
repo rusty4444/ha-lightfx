@@ -4,6 +4,8 @@
 
 Define room layouts, map lights to positions, and run ambient effects — rainbow, chase, breathe, strobe, theater chase, fire, color cycle, sparkle, wave, twinkle — across ordinary Zigbee, Z-Wave, Wi-Fi, or any HA-compatible lights. No special hardware needed.
 
+![HA LightFX](images/repo-preview.png)
+
 ## Features
 
 ### Backend Integration
