@@ -1,0 +1,199 @@
+create_layout:
+  name: Create Layout
+  description: Create a new light layout (room arrangement).
+  fields:
+    name:
+      name: Layout Name
+      description: Unique name for this layout (e.g. "Living Room").
+      required: true
+      example: "Living Room"
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: Optional MDI icon for the layout.
+      required: false
+      example: "mdi:sofa"
+      selector:
+        icon:
+
+remove_layout:
+  name: Remove Layout
+  description: Delete a light layout and its configuration.
+  fields:
+    layout_id:
+      name: Layout ID
+      description: The layout ID to remove.
+      required: true
+      example: "living_room"
+      selector:
+        text:
+
+add_light:
+  name: Add Light to Layout
+  description: Add a light to a layout at a specific position.
+  fields:
+    layout_id:
+      name: Layout ID
+      description: The layout to add the light to.
+      required: true
+      example: "living_room"
+      selector:
+        text:
+    entity_id:
+      name: Light Entity
+      description: The light entity to add.
+      required: true
+      selector:
+        entity:
+          domain: light
+          multiple: false
+    x:
+      name: X Position
+      description: Horizontal position in the virtual grid (0-100).
+      required: true
+      example: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
+    y:
+      name: Y Position
+      description: Vertical position in the virtual grid (0-100).
+      required: true
+      example: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
+    zone:
+      name: Zone
+      description: Optional zone grouping (e.g. "ceiling", "wall", "accent").
+      required: false
+      example: "ceiling"
+      selector:
+        select:
+          options:
+            - "ceiling"
+            - "wall"
+            - "accent"
+            - "floor"
+            - "other"
+
+remove_light:
+  name: Remove Light from Layout
+  description: Remove a light from a layout.
+  fields:
+    layout_id:
+      name: Layout ID
+      description: The layout containing the light.
+      required: true
+      example: "living_room"
+      selector:
+        text:
+    entity_id:
+      name: Light Entity
+      description: The light entity to remove.
+      required: true
+      selector:
+        entity:
+          domain: light
+
+start_effect:
+  name: Start Effect
+  description: Run a light effect on a layout.
+  fields:
+    layout_id:
+      name: Layout ID
+      description: The layout to run the effect on.
+      required: true
+      example: "living_room"
+      selector:
+        text:
+    effect:
+      name: Effect
+      description: The effect to run.
+      required: false
+      default: "rainbow"
+      selector:
+        select:
+          options:
+            - "rainbow"
+            - "chase"
+            - "breathe"
+            - "strobe"
+            - "theater_chase"
+            - "fire"
+            - "color_cycle"
+            - "sparkle"
+            - "wave"
+            - "twinkle"
+    color:
+      name: Color
+      description: Primary color for effects that use one (hex or RGB list).
+      required: false
+      example: "#FF0000"
+      selector:
+        color_rgb:
+    color2:
+      name: Secondary Color
+      description: Secondary color for two-color effects (hex or RGB list).
+      required: false
+      example: "#0000FF"
+      selector:
+        color_rgb:
+    brightness:
+      name: Brightness
+      description: Brightness percentage (0-100).
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
+    speed:
+      name: Speed
+      description: Effect speed (1=slow, 100=fast).
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          mode: slider
+    transition:
+      name: Transition
+      description: Transition time between states in seconds.
+      required: false
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 5.0
+          step: 0.1
+
+stop_effect:
+  name: Stop Effect
+  description: Stop a running effect on a layout.
+  fields:
+    layout_id:
+      name: Layout ID
+      description: The layout to stop the effect on.
+      required: true
+      example: "living_room"
+      selector:
+        text:
+    restore_previous:
+      name: Restore Previous State
+      description: Restore lights to their state before the effect started.
+      required: false
+      default: true
+      selector:
+        boolean:
