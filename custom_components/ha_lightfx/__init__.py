@@ -11,7 +11,6 @@ import asyncio
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_ON
 from homeassistant.core import HomeAssistant, ServiceCall
 import homeassistant.helpers.config_validation as cv
 
@@ -56,7 +55,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if stored:
         engine.from_storage(stored)
 
-    hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN] = {"engine": engine, "store": store}
 
     # Register services
@@ -202,6 +200,9 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     # ── stop_effect ────────────────────────────────────────────────
     async def handle_stop_effect(call: ServiceCall) -> None:
         lid = call.data["layout_id"]
+        ls = engine.get_layout(lid)
+        if not _check_layout(ls, lid):
+            return
         restore = call.data.get("restore_previous", True)
         engine.stop_effect(lid, restore=restore)
 
@@ -248,7 +249,8 @@ async def _register_websocket_api(hass, engine):
             }
         connection.send_result(msg["id"], {"layouts": layouts})
 
-    hass.components.websocket_api.async_register_command(
+    websocket_api.async_register_command(
+        hass,
         "ha_lightfx/layouts",
         ws_layouts,
         websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(

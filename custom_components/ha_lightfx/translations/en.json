@@ -1,0 +1,110 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Add HA LightFX to create virtual light layouts and run ambient effects on any smart light.",
+        "title": "HA LightFX"
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only one HA LightFX instance can be configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA LightFX Settings",
+        "description": "Configure layouts and lights for virtual light effects.",
+        "menu_options": {
+          "manage_layouts": "Manage Layouts",
+          "manage_lights": "Manage Lights"
+        }
+      },
+      "manage_layouts": {
+        "title": "Manage Layouts",
+        "description": "Create, rename, or delete light layouts.",
+        "menu_options": {
+          "create_layout": "Create Layout",
+          "rename_layout": "Rename Layout",
+          "delete_layout": "Delete Layout"
+        }
+      },
+      "create_layout": {
+        "title": "Create Layout",
+        "description": "Enter a name for the new layout.",
+        "data": {
+          "name": "Layout Name"
+        },
+        "errors": {
+          "duplicate": "A layout with this name already exists."
+        }
+      },
+      "rename_layout": {
+        "title": "Rename Layout",
+        "description": "{hint}",
+        "data": {
+          "layout_id": "Layout",
+          "name": "New Name"
+        }
+      },
+      "delete_layout": {
+        "title": "Delete Layout",
+        "description": "Are you sure? Layout '{name}' has {lights} lights assigned.",
+        "data": {
+          "layout_id": "Layout",
+          "confirm": "Yes, delete this layout"
+        }
+      },
+      "manage_lights": {
+        "title": "Manage Lights",
+        "description": "Select a layout to add, edit, or remove lights.",
+        "data": {
+          "layout_id": "Layout"
+        }
+      },
+      "list_lights": {
+        "title": "Lights in {layout}",
+        "description": "{lights}\n\nSelect an action and optionally a light, then submit.",
+        "data": {
+          "_action": "Action",
+          "entity_id": "Light"
+        }
+      },
+      "add_light": {
+        "title": "Add Light",
+        "data": {
+          "entity_id": "Light Entity",
+          "x": "X Position (0-100)",
+          "y": "Y Position (0-100)",
+          "zone": "Zone"
+        }
+      },
+      "edit_light": {
+        "title": "Edit Light",
+        "description": "{hint}",
+        "data": {
+          "entity_id": "Light Entity",
+          "x": "X Position (0-100)",
+          "y": "Y Position (0-100)",
+          "zone": "Zone"
+        }
+      },
+      "remove_light": {
+        "title": "Remove Light",
+        "description": "Remove {entity} from this layout?",
+        "data": {
+          "entity_id": "Light",
+          "confirm": "Yes, remove this light"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only one HA LightFX instance is supported.",
+      "no_layouts": "No layouts exist yet. Create one in Manage Layouts first.",
+      "no_layout": "No layout is currently selected.",
+      "layout_not_found": "The requested layout was not found. It may have been deleted.",
+      "light_not_found": "The requested light was not found in this layout.",
+      "canceled": "Operation cancelled."
+    }
+  }
+}

@@ -82,7 +82,9 @@ class LightFXEngine:
 
     def add_light(self, layout_id: str, entity_id: str, x: float, y: float,
                   zone: str = "other") -> None:
-        ls = self._get(layout_id)
+        ls = self._layouts.get(layout_id)
+        if ls is None:
+            return
         existing = [l for l in ls.lights if l.entity_id == entity_id]
         if existing:
             existing[0].x = x
@@ -92,7 +94,9 @@ class LightFXEngine:
             ls.lights.append(LightPoint(entity_id, x, y, zone))
 
     def remove_light(self, layout_id: str, entity_id: str) -> bool:
-        ls = self._get(layout_id)
+        ls = self._layouts.get(layout_id)
+        if ls is None:
+            return False
         before = len(ls.lights)
         ls.lights = [l for l in ls.lights if l.entity_id != entity_id]
         return len(ls.lights) < before
@@ -246,6 +250,8 @@ class LightFXEngine:
             }
 
         elif effect == "chase":
+            if n == 0:
+                return {}
             idx = int(t) % n
             result = {}
             for i, lp in enumerate(ls.lights):
@@ -317,9 +323,9 @@ class LightFXEngine:
             return {
                 lp.entity_id: {
                     "rgb_color": (
-                        min(255, int(c1[0] * (0.6 + random.random() * 0.4))),
-                        min(255, int(c1[1] * (0.2 + random.random() * 0.2))),
-                        min(255, int(c1[2] * (0.0 + random.random() * 0.1))),
+                        min(255, max(180, int(c1[0] * (0.6 + random.random() * 0.4)))),
+                        min(255, max(60, int(c1[1] * (0.2 + random.random() * 0.2)))),
+                        min(60, int(c1[2] * random.random() * 0.15)),
                     ),
                     "brightness": int(brightness * (0.7 + random.random() * 0.3)),
                     "transition": 0.1,
