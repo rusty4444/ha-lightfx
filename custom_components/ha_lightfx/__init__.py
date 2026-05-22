@@ -7,6 +7,7 @@ wave, twinkle) with no special hardware required.
 """
 
 import logging
+import asyncio
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -38,9 +39,16 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = []
 
 
+def _check_layout(ls, layout_id):
+    """Return ls or log a warning when the layout doesn't exist."""
+    if ls is None:
+        _LOGGER.warning("Layout '%s' not found — service call ignored", layout_id)
+    return ls is not None
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA LightFX from a config entry."""
-    engine = LightFXEngine(hass, _async_call_light_service)
+    engine = LightFXEngine(hass, hass.services.async_call)
 
     # Restore persisted layouts
     store = hass.helpers.storage.Store(STORAGE_VERSION, STORAGE_KEY)
@@ -63,18 +71,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload HA LightFX."""
     engine: LightFXEngine = hass.data[DOMAIN]["engine"]
-    for lid in list(engine._layouts):  # noqa — stop all running effects
-        engine.stop_effect(lid)
+    # Cancel all running effect tasks before unload
+    pending = []
+    for lid, ls in engine._layouts.items():
+        if ls.task and not ls.task.done():
+            ls.task.cancel()
+            pending.append(ls.task)
+        ls.running = False
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
     hass.data.pop(DOMAIN, None)
     return True
-
-
-async def _async_call_light_service(hass: HomeAssistant, service: str,
-                                     entity_id: str, **kwargs) -> None:
-    """Call a light service directly (no blocking)."""
-    data = {ATTR_ENTITY_ID: entity_id, **kwargs}
-    await hass.services.async_call("light", service.replace("light.", ""),
-                                   data, blocking=False, context=None)
 
 
 def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
@@ -109,8 +116,12 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
 
     # ── add_light ──────────────────────────────────────────────────
     async def handle_add_light(call: ServiceCall) -> None:
+        lid = call.data["layout_id"]
+        ls = engine.get_layout(lid)
+        if not _check_layout(ls, lid):
+            return
         engine.add_light(
-            call.data["layout_id"],
+            lid,
             call.data["entity_id"],
             call.data["x"],
             call.data["y"],
@@ -133,7 +144,11 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
 
     # ── remove_light ───────────────────────────────────────────────
     async def handle_remove_light(call: ServiceCall) -> None:
-        engine.remove_light(call.data["layout_id"], call.data["entity_id"])
+        lid = call.data["layout_id"]
+        ls = engine.get_layout(lid)
+        if not _check_layout(ls, lid):
+            return
+        engine.remove_light(lid, call.data["entity_id"])
         await _save(hass)
 
     hass.services.async_register(
@@ -153,6 +168,9 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
 
     async def handle_start_effect(call: ServiceCall) -> None:
         lid = call.data["layout_id"]
+        ls = engine.get_layout(lid)
+        if not _check_layout(ls, lid):
+            return
         effect = call.data.get("effect", DEFAULT_EFFECT)
         color = _resolve_color(call.data.get("color"))
         color2 = _resolve_color(call.data.get("color2"))
@@ -214,7 +232,6 @@ async def _register_websocket_api(hass, engine):
     """Register WebSocket commands for the frontend card."""
     from homeassistant.components import websocket_api
 
-    @websocket_api.require_admin
     @websocket_api.async_response
     async def ws_layouts(hass, connection, msg):
         """Return all layouts with light data."""

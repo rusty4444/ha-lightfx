@@ -25,8 +25,8 @@ EFFECTS = [
     "twinkle",
 ]
 
-# Default effect config
-DEFAULT_BRIGHTNESS = 128
+# Default effect config (0-100 range matches service schema)
+DEFAULT_BRIGHTNESS = 50
 DEFAULT_SPEED = 50
 DEFAULT_COLOR = [255, 255, 255]
 DEFAULT_EFFECT = "rainbow"

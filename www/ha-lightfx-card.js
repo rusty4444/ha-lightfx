@@ -56,6 +56,7 @@ class HAFXLayoutCard extends LitElement {
       _brightness: { state: true },
       _speed: { state: true },
       _editMode: { state: true },
+      _infoMsg: { state: true },
     };
   }
 
@@ -71,11 +72,22 @@ class HAFXLayoutCard extends LitElement {
     this._speed = 50;
     this._editMode = false;
     this._infoMsg = "";
+    this._lastConfigHash = "";
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._refreshLayouts();
+  }
+
+  updated(changedProps) {
+    super.updated(changedProps);
+    // Only refresh from WS when config first arrives or on first load
+    if (changedProps.has("config") && this.config && this.config !== {}) {
+      this._refreshLayouts();
+    }
+    if (!this._hass || this._layouts === null) {
+      this._refreshLayouts();
+    }
   }
 
   async _refreshLayouts() {
@@ -84,13 +96,21 @@ class HAFXLayoutCard extends LitElement {
         type: "ha_lightfx/layouts",
       });
       this._layouts = result.layouts || {};
-    } catch {
-      // Fallback: try reading from state
+    } catch (err) {
+      console.warn("HA LightFX: failed to fetch layouts", err);
+      this._layouts = {};
     }
   }
 
-  _callService(service, data = {}) {
-    this._hass.callService("ha_lightfx", service, data);
+  async _callService(service, data = {}) {
+    if (!this._hass) return;
+    try {
+      await this._hass.callService("ha_lightfx", service, data);
+    } catch (err) {
+      console.error("HA LightFX: service call failed", service, err);
+      this._infoMsg = `⚠ Error: ${err.message || err}`;
+      this.requestUpdate();
+    }
   }
 
   _selectLayout(lid) {
@@ -118,7 +138,6 @@ class HAFXLayoutCard extends LitElement {
     if (this._color2) data.color2 = hexToRgb(this._color2);
 
     this._callService("start_effect", data);
-    this._infoMsg = `▶ ${EFFECT_LABELS[this._selectedEffect]} started`;
   }
 
   _stopEffect() {
@@ -127,7 +146,6 @@ class HAFXLayoutCard extends LitElement {
       layout_id: this._selectedLayout,
       restore_previous: true,
     });
-    this._infoMsg = "⏹ Effect stopped";
   }
 
   _renderGrid() {

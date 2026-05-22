@@ -111,12 +111,23 @@ class LightFXEngine:
         }
 
     def from_storage(self, data: dict) -> None:
-        """Restore layouts from storage."""
+        """Restore layouts from storage. Skip corrupted entries."""
         for lid, info in data.items():
-            ls = LayoutState(name=info["name"])
-            for lp in info.get("lights", []):
-                ls.lights.append(LightPoint(lp["entity_id"], lp["x"], lp["y"], lp.get("zone", "other")))
-            self._layouts[lid] = ls
+            try:
+                name = info.get("name", lid)
+                ls = LayoutState(name=name)
+                for lp in info.get("lights", []):
+                    ls.lights.append(
+                        LightPoint(
+                            lp.get("entity_id", ""),
+                            lp.get("x", 0),
+                            lp.get("y", 0),
+                            lp.get("zone", "other"),
+                        )
+                    )
+                self._layouts[lid] = ls
+            except (KeyError, TypeError) as exc:
+                _LOGGER.warning("Skipping corrupted layout '%s' from storage: %s", lid, exc)
 
     # ── Effects ────────────────────────────────────────────────────────
 
@@ -206,6 +217,8 @@ class LightFXEngine:
         except Exception:
             _LOGGER.exception("Effect loop error for layout %s", layout_id)
             ls.running = False
+        finally:
+            ls.task = None
 
     def _compute_frame(self, effect: str, ls: LayoutState,
                        tick: int) -> dict[str, dict]:
