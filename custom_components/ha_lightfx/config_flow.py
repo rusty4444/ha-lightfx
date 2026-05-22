@@ -288,6 +288,7 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             existing.x = user_input["x"]
             existing.y = user_input["y"]
+            existing.z = user_input.get("z", existing.z)
             existing.zone = user_input.get("zone", "other")
             await self._save()
             return await self._step_list_lights(layout_id, None)

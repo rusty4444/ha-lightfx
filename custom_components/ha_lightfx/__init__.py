@@ -325,13 +325,15 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     )
 
     # ── preview_effect ─────────────────────────────────────────────
-    async def handle_preview_effect(call: ServiceCall) -> None:
-        lid = call.data["layout_id"]
-        effect = call.data.get("effect", DEFAULT_EFFECT)
-        try:
-            result = engine.compute_frame_one(lid, effect, call.data.get("params"))
-        except ValueError:
-            return
+    async def handle_preview_effect(call: ServiceCall) -> dict | None:
+        if call.return_response:
+            lid = call.data["layout_id"]
+            effect = call.data.get("effect", DEFAULT_EFFECT)
+            try:
+                return engine.compute_frame_one(lid, effect, call.data.get("params"))
+            except ValueError:
+                return None
+        return None
     hass.services.async_register(
         DOMAIN, SERVICE_PREVIEW_EFFECT, handle_preview_effect,
         schema=vol.Schema({

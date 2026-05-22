@@ -178,6 +178,29 @@ start_effect:
           min: 0.1
           max: 5.0
           step: 0.1
+    direction:
+      name: Direction
+      description: Effect direction — forward (default), reverse, or bounce.
+      required: false
+      default: "forward"
+      selector:
+        select:
+          options:
+            - "forward"
+            - "reverse"
+            - "bounce"
+    audio_entity_id:
+      name: Audio Entity
+      description: Media player entity for audio-reactive brightness modulation.
+      required: false
+      selector:
+        entity:
+          domain: media_player
+    effect_per_zone:
+      name: Zone Effects
+      description: Map zone -> effect for per-zone dispatch.
+      required: false
+      advanced: true
 
 stop_effect:
   name: Stop Effect

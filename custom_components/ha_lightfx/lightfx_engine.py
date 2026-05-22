@@ -97,7 +97,7 @@ class LightFXEngine:
         }
 
     def add_light(self, layout_id: str, entity_id: str, x: float, y: float,
-                  zone: str = "other") -> None:
+                  z: float = 0, zone: str = "other") -> None:
         ls = self._layouts.get(layout_id)
         if ls is None:
             return
@@ -105,9 +105,10 @@ class LightFXEngine:
         if existing:
             existing[0].x = x
             existing[0].y = y
+            existing[0].z = z
             existing[0].zone = zone
         else:
-            ls.lights.append(LightPoint(entity_id, x, y, zone))
+            ls.lights.append(LightPoint(entity_id, x, y, z, zone))
 
     def remove_light(self, layout_id: str, entity_id: str) -> bool:
         ls = self._layouts.get(layout_id)
