@@ -150,6 +150,9 @@ class HAFXLayoutCard extends LitElement {
 
   _stopEffect() {
     if (!this._selectedLayout) return;
+    const layout = this._layouts[this._selectedLayout];
+    if (!layout || !layout.running) return;
+    if (!confirm("Stop the running effect? Lights will restore to their previous state.")) return;
     this._callService("stop_effect", {
       layout_id: this._selectedLayout,
       restore_previous: true,
