@@ -35,6 +35,7 @@ DEFAULT_TRANSITION = 0.5
 # Service names
 SERVICE_CREATE_LAYOUT = "create_layout"
 SERVICE_REMOVE_LAYOUT = "remove_layout"
+SERVICE_LIST_LAYOUTS = "list_layouts"
 SERVICE_START_EFFECT = "start_effect"
 SERVICE_STOP_EFFECT = "stop_effect"
 SERVICE_ADD_LIGHT = "add_light"

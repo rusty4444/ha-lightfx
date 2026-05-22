@@ -47,6 +47,7 @@ class LayoutState:
     """Runtime state for a layout."""
 
     name: str
+    icon: str | None = None
     lights: list[LightPoint] = field(default_factory=list)
     current_effect: str | None = None
     current_params: dict[str, Any] = field(default_factory=dict)
@@ -75,7 +76,7 @@ class LightFXEngine:
         lid = name.lower().replace(" ", "_")
         if lid in self._layouts:
             raise ValueError(f"Layout '{name}' already exists")
-        self._layouts[lid] = LayoutState(name=name)
+        self._layouts[lid] = LayoutState(name=name, icon=icon)
         return lid
 
     def remove_layout(self, layout_id: str) -> bool:
@@ -89,6 +90,7 @@ class LightFXEngine:
         return {
             lid: {
                 "name": ls.name,
+                "icon": ls.icon,
                 "light_count": len(ls.lights),
                 "current_effect": ls.current_effect,
                 "running": ls.running,
@@ -125,6 +127,7 @@ class LightFXEngine:
             "layouts": {
             lid: {
                 "name": ls.name,
+                "icon": ls.icon,
                 "lights": [
                     {"entity_id": lp.entity_id, "x": lp.x, "y": lp.y, "z": lp.z, "zone": lp.zone}
                     for lp in ls.lights
@@ -146,7 +149,8 @@ class LightFXEngine:
         for lid, info in layouts_data.items():
             try:
                 name = info.get("name", lid)
-                ls = LayoutState(name=name)
+                icon = info.get("icon")
+                ls = LayoutState(name=name, icon=icon)
                 for lp in info.get("lights", []):
                     ls.lights.append(
                         LightPoint(
@@ -208,10 +212,12 @@ class LightFXEngine:
         base.setdefault("transition", 0.5)
         base.setdefault("direction", "forward")
         saved = ls.current_params
-        ls.current_params = base
-        result = self._compute_frame(effect, ls, 0)
-        ls.current_params = saved
-        return result
+        try:
+            ls.current_params = base
+            result = self._compute_frame(effect, ls, 0)
+            return result
+        finally:
+            ls.current_params = saved
     # ── Effects ────────────────────────────────────────────────────────
 
     def start_effect(self, layout_id: str, effect: str,

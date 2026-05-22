@@ -14,10 +14,12 @@
     "step": {
       "init": {
         "title": "HA LightFX Settings",
-        "description": "Configure layouts and lights for virtual light effects.",
+        "description": "Configure layouts, lights, profiles, and groups for virtual light effects.",
         "menu_options": {
           "manage_layouts": "Manage Layouts",
-          "manage_lights": "Manage Lights"
+          "manage_lights": "Manage Lights",
+          "manage_profiles": "Manage Profiles",
+          "manage_groups": "Manage Groups"
         }
       },
       "manage_layouts": {
@@ -39,11 +41,17 @@
           "duplicate": "A layout with this name already exists."
         }
       },
-      "rename_layout": {
+      "rename_layout_pick": {
         "title": "Rename Layout",
         "description": "{hint}",
         "data": {
-          "layout_id": "Layout",
+          "layout_id": "Layout"
+        }
+      },
+      "rename_layout_name": {
+        "title": "Rename Layout",
+        "description": "{hint}",
+        "data": {
           "name": "New Name"
         }
       },
@@ -76,6 +84,7 @@
           "entity_id": "Light Entity",
           "x": "X Position (0-100)",
           "y": "Y Position (0-100)",
+          "z": "Z Depth (0-100)",
           "zone": "Zone"
         }
       },
@@ -86,6 +95,7 @@
           "entity_id": "Light Entity",
           "x": "X Position (0-100)",
           "y": "Y Position (0-100)",
+          "z": "Z Depth (0-100)",
           "zone": "Zone"
         }
       },
@@ -96,6 +106,59 @@
           "entity_id": "Light",
           "confirm": "Yes, remove this light"
         }
+      },
+      "manage_profiles": {
+        "title": "Manage Profiles",
+        "description": "Create, apply, or delete effect profiles.",
+        "menu_options": {
+          "create_profile": "Create Profile",
+          "delete_profile": "Delete Profile",
+          "apply_profile": "Apply Profile"
+        }
+      },
+      "create_profile": {
+        "title": "Create Profile",
+        "data": {
+          "name": "Profile Name",
+          "effect": "Effect",
+          "brightness": "Brightness (0-100)",
+          "speed": "Speed (1-100)",
+          "direction": "Direction"
+        }
+      },
+      "delete_profile": {
+        "title": "Delete Profile",
+        "data": {
+          "profile_id": "Profile"
+        }
+      },
+      "apply_profile": {
+        "title": "Apply Profile",
+        "data": {
+          "profile_id": "Profile",
+          "layout_id": "Layout"
+        }
+      },
+      "manage_groups": {
+        "title": "Manage Groups",
+        "description": "Create or delete layout groups for synchronized effects.",
+        "menu_options": {
+          "create_group": "Create Group",
+          "delete_group": "Delete Group"
+        }
+      },
+      "create_group": {
+        "title": "Create Group",
+        "data": {
+          "group_id": "Group ID",
+          "layout_ids": "Layouts"
+        }
+      },
+      "delete_group": {
+        "title": "Delete Group",
+        "data": {
+          "group_id": "Group"
+        }
       }
     },
     "abort": {
@@ -104,6 +167,9 @@
       "no_layout": "No layout is currently selected.",
       "layout_not_found": "The requested layout was not found. It may have been deleted.",
       "light_not_found": "The requested light was not found in this layout.",
+      "no_profiles": "No profiles exist yet.",
+      "no_profiles_or_layouts": "No profiles or layouts found. Create both first.",
+      "no_groups": "No groups exist yet.",
       "canceled": "Operation cancelled."
     }
   }

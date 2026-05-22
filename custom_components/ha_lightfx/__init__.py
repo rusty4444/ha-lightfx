@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
     SERVICE_CREATE_LAYOUT,
     SERVICE_REMOVE_LAYOUT,
+    SERVICE_LIST_LAYOUTS,
     SERVICE_START_EFFECT,
     SERVICE_STOP_EFFECT,
     SERVICE_ADD_LIGHT,
@@ -101,7 +102,8 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     # ── create_layout ──────────────────────────────────────────────
     async def handle_create_layout(call: ServiceCall) -> None:
         name = call.data[CONF_NAME]
-        lid = engine.create_layout(name)
+        icon = call.data.get("icon")
+        lid = engine.create_layout(name, icon)
         await _save(hass)
 
     hass.services.async_register(
@@ -119,6 +121,14 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_REMOVE_LAYOUT, handle_remove_layout,
         schema=vol.Schema({vol.Required("layout_id"): cv.string}),
+    )
+
+    # ── list_layouts ──────────────────────────────────────────────
+    async def handle_list_layouts(call: ServiceCall) -> None:
+        return engine.list_layouts()
+    hass.services.async_register(
+        DOMAIN, SERVICE_LIST_LAYOUTS, handle_list_layouts,
+        schema=vol.Schema({}),
     )
 
     # ── add_light ──────────────────────────────────────────────────
@@ -220,6 +230,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     # ── create_profile ─────────────────────────────────────────────
     async def handle_create_profile(call: ServiceCall) -> None:
         engine.create_profile(call.data["name"], call.data.get("config", {}))
+        await _save(hass)
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_PROFILE, handle_create_profile,
         schema=vol.Schema({
@@ -231,6 +242,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     # ── delete_profile ─────────────────────────────────────────────
     async def handle_delete_profile(call: ServiceCall) -> None:
         engine.delete_profile(call.data["profile_id"])
+        await _save(hass)
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_PROFILE, handle_delete_profile,
         schema=vol.Schema({vol.Required("profile_id"): cv.string}),
@@ -247,6 +259,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     # ── create_group ───────────────────────────────────────────────
     async def handle_create_group(call: ServiceCall) -> None:
         engine.create_group(call.data["group_id"], call.data["layout_ids"])
+        await _save(hass)
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_GROUP, handle_create_group,
         schema=vol.Schema({
@@ -258,6 +271,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     # ── delete_group ───────────────────────────────────────────────
     async def handle_delete_group(call: ServiceCall) -> None:
         engine.delete_group(call.data["group_id"])
+        await _save(hass)
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_GROUP, handle_delete_group,
         schema=vol.Schema({vol.Required("group_id"): cv.string}),

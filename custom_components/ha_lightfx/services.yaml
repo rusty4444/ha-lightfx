@@ -409,12 +409,7 @@ start_layout_group:
 
 
 # ── List / management services ────────────────────────────────────────────
-list_profiles:
-  name: List Profiles
-  description: List all saved effect profiles.
-  fields: {}
-
-list_groups:
-  name: List Available Groups
-  description: List all layout groups.
+list_layouts:
+  name: List Layouts
+  description: Get all layouts and their current status.
   fields: {}
