@@ -22,6 +22,15 @@ from .const import (
     SERVICE_STOP_EFFECT,
     SERVICE_ADD_LIGHT,
     SERVICE_REMOVE_LIGHT,
+    SERVICE_CREATE_PROFILE,
+    SERVICE_DELETE_PROFILE,
+    SERVICE_LIST_PROFILES,
+    SERVICE_CREATE_GROUP,
+    SERVICE_DELETE_GROUP,
+    SERVICE_LIST_GROUPS,
+    SERVICE_PREVIEW_EFFECT,
+    SERVICE_START_SEQUENCE,
+    SERVICE_START_LAYOUT_GROUP,
     CONF_NAME,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -197,6 +206,113 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         }),
     )
 
+
+    # ── create_profile ─────────────────────────────────────────────
+    async def handle_create_profile(call: ServiceCall) -> None:
+        engine.create_profile(call.data["name"], call.data.get("config", {}))
+    hass.services.async_register(
+        DOMAIN, SERVICE_CREATE_PROFILE, handle_create_profile,
+        schema=vol.Schema({
+            vol.Required("name"): cv.string,
+            vol.Optional("config", default={}): dict,
+        }),
+    )
+
+    # ── delete_profile ─────────────────────────────────────────────
+    async def handle_delete_profile(call: ServiceCall) -> None:
+        engine.delete_profile(call.data["profile_id"])
+    hass.services.async_register(
+        DOMAIN, SERVICE_DELETE_PROFILE, handle_delete_profile,
+        schema=vol.Schema({vol.Required("profile_id"): cv.string}),
+    )
+
+    # ── list_profiles ──────────────────────────────────────────────
+    async def handle_list_profiles(call: ServiceCall) -> None:
+        return engine.list_profiles()
+    hass.services.async_register(
+        DOMAIN, SERVICE_LIST_PROFILES, handle_list_profiles,
+        schema=vol.Schema({}),
+    )
+
+    # ── create_group ───────────────────────────────────────────────
+    async def handle_create_group(call: ServiceCall) -> None:
+        engine.create_group(call.data["group_id"], call.data["layout_ids"])
+    hass.services.async_register(
+        DOMAIN, SERVICE_CREATE_GROUP, handle_create_group,
+        schema=vol.Schema({
+            vol.Required("group_id"): cv.string,
+            vol.Required("layout_ids"): vol.All(cv.ensure_list, [cv.string]),
+        }),
+    )
+
+    # ── delete_group ───────────────────────────────────────────────
+    async def handle_delete_group(call: ServiceCall) -> None:
+        engine.delete_group(call.data["group_id"])
+    hass.services.async_register(
+        DOMAIN, SERVICE_DELETE_GROUP, handle_delete_group,
+        schema=vol.Schema({vol.Required("group_id"): cv.string}),
+    )
+
+    # ── start_sequence ─────────────────────────────────────────────
+    async def handle_start_sequence(call: ServiceCall) -> None:
+        lid = call.data["layout_id"]
+        ls = engine.get_layout(lid)
+        if not _check_layout(ls, lid):
+            return
+        engine.start_effect(
+            lid, call.data.get("effect", "rainbow"),
+            sequence=call.data.get("sequence", []),
+            brightness=call.data.get("brightness", 50),
+        )
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_SEQUENCE, handle_start_sequence,
+        schema=vol.Schema({
+            vol.Required("layout_id"): cv.string,
+            vol.Optional("effect", default="rainbow"): cv.string,
+            vol.Optional("brightness", default=50): vol.All(vol.Coerce(int), vol.Range(0, 100)),
+            vol.Required("sequence"): vol.All(cv.ensure_list, [{
+                vol.Required("effect"): cv.string,
+                vol.Required("duration_seconds"): vol.All(vol.Coerce(int), vol.Range(1, 3600)),
+                vol.Optional("color"): _color_or_none,
+                vol.Optional("color2"): _color_or_none,
+                vol.Optional("brightness"): vol.All(vol.Coerce(int), vol.Range(0, 100)),
+                vol.Optional("speed"): vol.All(vol.Coerce(int), vol.Range(1, 100)),
+                vol.Optional("direction"): vol.In(["forward", "reverse", "bounce"]),
+            }]),
+        }),
+    )
+
+    # ── start_layout_group ─────────────────────────────────────────
+    async def handle_start_layout_group(call: ServiceCall) -> None:
+        group_id = call.data["group_id"]
+        layout_ids = engine.get_group(group_id)
+        if not layout_ids:
+            _LOGGER.warning("Layout group '%s' not found", group_id)
+            return
+        effect = call.data.get("effect", DEFAULT_EFFECT)
+        color = _resolve_color(call.data.get("color"))
+        color2 = _resolve_color(call.data.get("color2"))
+        brightness = call.data.get("brightness", 50)
+        speed = call.data.get("speed", DEFAULT_SPEED)
+        transition = call.data.get("transition", DEFAULT_TRANSITION)
+        direction = call.data.get("direction", "forward")
+        for lid in layout_ids:
+            engine.start_effect(lid, effect=effect, color=color, color2=color2,
+                                brightness=brightness, speed=speed,
+                                transition=transition, direction=direction)
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_LAYOUT_GROUP, handle_start_layout_group,
+        schema=vol.Schema({
+            vol.Required("group_id"): cv.string,
+            vol.Optional("effect", default=DEFAULT_EFFECT): vol.In(EFFECTS),
+            vol.Optional("color"): _color_or_none,
+            vol.Optional("color2"): _color_or_none,
+            vol.Optional("brightness", default=50): vol.All(vol.Coerce(int), vol.Range(0, 100)),
+            vol.Optional("speed", default=DEFAULT_SPEED): vol.All(vol.Coerce(int), vol.Range(1, 100)),
+            vol.Optional("transition", default=DEFAULT_TRANSITION): vol.All(vol.Coerce(float), vol.Range(0.1, 5.0)),
+            vol.Optional("direction", default="forward"): vol.In(["forward", "reverse", "bounce"]),
+        }),
+    )
     # ── stop_effect ────────────────────────────────────────────────
     async def handle_stop_effect(call: ServiceCall) -> None:
         lid = call.data["layout_id"]
@@ -243,12 +359,65 @@ async def _register_websocket_api(hass, engine):
             layouts[lid] = {
                 **info,
                 "lights": [
-                    {"entity_id": lp.entity_id, "x": lp.x, "y": lp.y, "zone": lp.zone}
+                    {"entity_id": lp.entity_id, "x": lp.x, "y": lp.y, "z": lp.z, "zone": lp.zone}
                     for lp in (ls.lights if ls else [])
                 ],
             }
         connection.send_result(msg["id"], {"layouts": layouts})
 
+
+    @websocket_api.async_response
+    async def ws_preview(hass, connection, msg):
+        """Compute a single preview frame for an effect."""
+        lid = msg.get("layout_id")
+        effect = msg.get("effect", "rainbow")
+        try:
+            result = engine.compute_frame_one(lid, effect, msg.get("params"))
+            connection.send_result(msg["id"], {"states": result})
+        except ValueError as e:
+            connection.send_error(msg["id"], "not_found", str(e))
+
+    websocket_api.async_register_command(
+        hass,
+        "ha_lightfx/preview",
+        ws_preview,
+        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
+            {
+                vol.Required("type"): "ha_lightfx/preview",
+                vol.Required("layout_id"): cv.string,
+                vol.Optional("effect", default="rainbow"): cv.string,
+                vol.Optional("params"): dict,
+            }
+        ),
+    )
+
+    @websocket_api.async_response
+    async def ws_profiles(hass, connection, msg):
+        """Return all profiles."""
+        connection.send_result(msg["id"], {"profiles": engine.list_profiles()})
+
+    websocket_api.async_register_command(
+        hass,
+        "ha_lightfx/profiles",
+        ws_profiles,
+        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
+            {"type": "ha_lightfx/profiles"}
+        ),
+    )
+
+    @websocket_api.async_response
+    async def ws_groups(hass, connection, msg):
+        """Return all layout groups."""
+        connection.send_result(msg["id"], {"groups": engine.list_groups()})
+
+    websocket_api.async_register_command(
+        hass,
+        "ha_lightfx/groups",
+        ws_groups,
+        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
+            {"type": "ha_lightfx/groups"}
+        ),
+    )
     websocket_api.async_register_command(
         hass,
         "ha_lightfx/layouts",

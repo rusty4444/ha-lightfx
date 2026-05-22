@@ -8,8 +8,9 @@ lights entirely through the HA UI — no YAML required.
 from homeassistant import config_entries
 from homeassistant.core import callback
 import voluptuous as vol
+import homeassistant.helpers.config_validation as cv
 
-from .const import DOMAIN, CONF_NAME
+from .const import DOMAIN, CONF_NAME, EFFECTS
 
 
 class LightFXConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -45,6 +46,8 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
             menu_options=[
                 "manage_layouts",
                 "manage_lights",
+                "manage_profiles",
+                "manage_groups",
             ],
         )
 
@@ -353,6 +356,146 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
         self._context_storage["edit_entity_id"] = ent
         return await self._step_remove_light(lid, ent, engine, user_input)
 
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  PROFILES
+    # ═══════════════════════════════════════════════════════════════════════
+
+    async def async_step_manage_profiles(self, user_input=None):
+        """Profile submenu."""
+        engine = self._engine()
+        has_profiles = bool(engine.list_profiles())
+        menu = ["create_profile"]
+        if has_profiles:
+            menu += ["delete_profile", "apply_profile"]
+        return self.async_show_menu(step_id="manage_profiles", menu_options=menu)
+
+    async def async_step_create_profile(self, user_input=None):
+        """Create a new effect profile."""
+        if user_input is not None:
+            config = {
+                "effect": user_input.get("effect", "rainbow"),
+                "brightness": user_input.get("brightness", 50),
+                "speed": user_input.get("speed", 50),
+                "direction": user_input.get("direction", "forward"),
+            }
+            self._engine().create_profile(user_input["name"], config)
+            await self._save()
+            return self.async_create_entry(title=f"✓ Profile '{user_input['name']}' created", data={})
+        return self.async_show_form(
+            step_id="create_profile",
+            data_schema=vol.Schema({
+                vol.Required("name"): str,
+                vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
+                vol.Optional("brightness", default=50):
+                    vol.All(vol.Coerce(int), vol.Range(0, 100)),
+                vol.Optional("speed", default=50):
+                    vol.All(vol.Coerce(int), vol.Range(1, 100)),
+                vol.Optional("direction", default="forward"):
+                    vol.In(["forward", "reverse", "bounce"]),
+            }),
+        )
+
+    async def async_step_delete_profile(self, user_input=None):
+        """Delete a profile."""
+        engine = self._engine()
+        profiles = engine.list_profiles()
+        if not profiles:
+            return self.async_abort(reason="no_profiles")
+        if user_input is not None:
+            engine.delete_profile(user_input["profile_id"])
+            await self._save()
+            return self.async_create_entry(title=f"✓ Profile deleted", data={})
+        return self.async_show_form(
+            step_id="delete_profile",
+            data_schema=vol.Schema({
+                vol.Required("profile_id"): vol.In(
+                    {pid: info["name"] for pid, info in profiles.items()}
+                ),
+            }),
+        )
+
+    async def async_step_apply_profile(self, user_input=None):
+        """Apply a profile to a layout."""
+        engine = self._engine()
+        profiles = engine.list_profiles()
+        layouts = engine.list_layouts()
+        if not profiles or not layouts:
+            return self.async_abort(reason="no_profiles_or_layouts")
+        if user_input is not None:
+            pid = user_input["profile_id"]
+            lid = user_input["layout_id"]
+            profile = profiles.get(pid)
+            if profile:
+                cfg = profile.get("config", {})
+                engine.start_effect(
+                    lid,
+                    effect=cfg.get("effect", "rainbow"),
+                    brightness=cfg.get("brightness", 50),
+                    speed=cfg.get("speed", 50),
+                    direction=cfg.get("direction", "forward"),
+                )
+            return self.async_create_entry(title=f"✓ Profile '{pid}' applied", data={})
+        return self.async_show_form(
+            step_id="apply_profile",
+            data_schema=vol.Schema({
+                vol.Required("profile_id"): vol.In(
+                    {pid: info["name"] for pid, info in profiles.items()}
+                ),
+                vol.Required("layout_id"): vol.In(
+                    {lid: info["name"] for lid, info in layouts.items()}
+                ),
+            }),
+        )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  GROUPS
+    # ═══════════════════════════════════════════════════════════════════════
+
+    async def async_step_manage_groups(self, user_input=None):
+        engine = self._engine()
+        has_groups = bool(engine.list_groups())
+        menu = ["create_group"]
+        if has_groups:
+            menu += ["delete_group"]
+        return self.async_show_menu(step_id="manage_groups", menu_options=menu)
+
+    async def async_step_create_group(self, user_input=None):
+        engine = self._engine()
+        layouts = engine.list_layouts()
+        if not layouts:
+            return self.async_abort(reason="no_layouts")
+        if user_input is not None:
+            engine.create_group(user_input["group_id"], user_input["layout_ids"])
+            await self._save()
+            return self.async_create_entry(title=f"✓ Group '{user_input['group_id']}' created", data={})
+        return self.async_show_form(
+            step_id="create_group",
+            data_schema=vol.Schema({
+                vol.Required("group_id"): str,
+                vol.Required("layout_ids"): vol.All(
+                    cv.multi_select, [vol.In(layouts)]
+                ),
+            }),
+        )
+
+    async def async_step_delete_group(self, user_input=None):
+        engine = self._engine()
+        groups = engine.list_groups()
+        if not groups:
+            return self.async_abort(reason="no_groups")
+        if user_input is not None:
+            engine.delete_group(user_input["group_id"])
+            await self._save()
+            return self.async_create_entry(title=f"✓ Group deleted", data={})
+        return self.async_show_form(
+            step_id="delete_group",
+            data_schema=vol.Schema({
+                vol.Required("group_id"): vol.In(
+                    {gid: f"{gid} ({len(lids)} layouts)" for gid, lids in groups.items()}
+                ),
+            }),
+        )
     # ── Helpers ──────────────────────────────────────────────────────────
 
     def _engine(self):

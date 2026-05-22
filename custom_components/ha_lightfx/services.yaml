@@ -197,3 +197,189 @@ stop_effect:
       default: true
       selector:
         boolean:
+
+
+# ── Profile services ─────────────────────────────────────────────────
+create_profile:
+  name: Create Profile
+  description: Create a named effect profile (preset configuration).
+  fields:
+    name:
+      name: Profile Name
+      description: Unique name for this profile.
+      required: true
+      example: "Party Mode"
+      selector:
+        text:
+    config:
+      name: Profile Config
+      description: Effect configuration (effect, colors, brightness, speed, etc.)
+      required: false
+      advanced: true
+
+delete_profile:
+  name: Delete Profile
+  description: Delete an effect profile.
+  fields:
+    profile_id:
+      name: Profile ID
+      description: The profile ID to delete.
+      required: true
+      selector:
+        text:
+
+list_profiles:
+  name: List Profiles
+  description: List all saved effect profiles.
+  fields: {}
+
+# ── Group services ───────────────────────────────────────────────────
+create_group:
+  name: Create Layout Group
+  description: Group multiple layouts together for synchronized effects.
+  fields:
+    group_id:
+      name: Group ID
+      description: Unique group identifier.
+      required: true
+      example: "downstairs"
+      selector:
+        text:
+    layout_ids:
+      name: Layout IDs
+      description: List of layout IDs to include in the group.
+      required: true
+      selector:
+        text:
+          multiple: true
+
+delete_group:
+  name: Delete Layout Group
+  description: Delete a layout group.
+  fields:
+    group_id:
+      name: Group ID
+      description: The group ID to delete.
+      required: true
+      selector:
+        text:
+
+list_groups:
+  name: List Groups
+  description: List all layout groups.
+  fields: {}
+
+# ── Sequence service ──────────────────────────────────────────────────
+start_sequence:
+  name: Start Effect Sequence
+  description: Run a timed sequence of effects on a layout.
+  fields:
+    layout_id:
+      name: Layout ID
+      description: The layout to run the sequence on.
+      required: true
+      example: "living_room"
+      selector:
+        text:
+    sequence:
+      name: Sequence Steps
+      description: List of effect steps with duration.
+      required: true
+      example: '[{"effect": "breathe", "duration_seconds": 10}, {"effect": "rainbow", "duration_seconds": 20}]'
+    brightness:
+      name: Brightness
+      description: Global brightness for the sequence.
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
+
+# ── Layout group service ──────────────────────────────────────────────
+start_layout_group:
+  name: Start Effect on Layout Group
+  description: Start the same effect synchronously on all layouts in a group.
+  fields:
+    group_id:
+      name: Group ID
+      description: The layout group to run the effect on.
+      required: true
+      example: "downstairs"
+      selector:
+        text:
+    effect:
+      name: Effect
+      description: The effect to run on all layouts.
+      required: false
+      default: "rainbow"
+      selector:
+        select:
+          options:
+            - "rainbow"
+            - "chase"
+            - "breathe"
+            - "strobe"
+            - "theater_chase"
+            - "fire"
+            - "color_cycle"
+            - "sparkle"
+            - "wave"
+            - "twinkle"
+    color:
+      name: Color
+      description: Primary color for effects.
+      required: false
+      selector:
+        color_rgb:
+    color2:
+      name: Secondary Color
+      description: Secondary color for two-color effects.
+      required: false
+      selector:
+        color_rgb:
+    brightness:
+      name: Brightness
+      description: Brightness percentage (0-100).
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
+    speed:
+      name: Speed
+      description: Effect speed (1=slow, 100=fast).
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          mode: slider
+    transition:
+      name: Transition
+      description: Transition time between states.
+      required: false
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 5.0
+          step: 0.1
+    direction:
+      name: Direction
+      description: Effect direction.
+      required: false
+      default: "forward"
+      selector:
+        select:
+          options:
+            - "forward"
+            - "reverse"
+            - "bounce"

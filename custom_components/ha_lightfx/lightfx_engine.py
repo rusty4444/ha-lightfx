@@ -15,6 +15,19 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+def _hex_or_rgb(val, default):
+    """Convert hex string or None to existing default."""
+    if val is None:
+        return default
+    if isinstance(val, str):
+        val = val.lstrip("#")
+        if len(val) == 3:
+            val = "".join(c * 2 for c in val)
+        return tuple(int(val[i:i+2], 16) for i in (0, 2, 4))
+    if isinstance(val, (list, tuple)):
+        return tuple(int(c) for c in val[:3])
+    return default
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -107,7 +120,7 @@ class LightFXEngine:
             lid: {
                 "name": ls.name,
                 "lights": [
-                    {"entity_id": lp.entity_id, "x": lp.x, "y": lp.y, "zone": lp.zone}
+                    {"entity_id": lp.entity_id, "x": lp.x, "y": lp.y, "z": lp.z, "zone": lp.zone}
                     for lp in ls.lights
                 ],
             }
@@ -126,6 +139,7 @@ class LightFXEngine:
                             lp.get("entity_id", ""),
                             lp.get("x", 0),
                             lp.get("y", 0),
+                            lp.get("z", 0),
                             lp.get("zone", "other"),
                         )
                     )
@@ -133,13 +147,69 @@ class LightFXEngine:
             except (KeyError, TypeError) as exc:
                 _LOGGER.warning("Skipping corrupted layout '%s' from storage: %s", lid, exc)
 
+
+    # ── Effect profiles ────────────────────────────────────────────────
+
+    def create_profile(self, name: str, config: dict) -> str:
+        """Create a named effect profile."""
+        pid = name.lower().replace(" ", "_")
+        self._profiles[pid] = {"name": name, "config": config}
+        return pid
+
+    def delete_profile(self, profile_id: str) -> bool:
+        return self._profiles.pop(profile_id, None) is not None
+
+    def list_profiles(self) -> dict[str, dict]:
+        return dict(self._profiles)
+
+    # ── Layout groups ──────────────────────────────────────────────────
+
+    def create_group(self, group_id: str, layout_ids: list[str]) -> None:
+        self._groups[group_id] = layout_ids
+
+    def delete_group(self, group_id: str) -> bool:
+        return self._groups.pop(group_id, None) is not None
+
+    def list_groups(self) -> dict[str, list[str]]:
+        return dict(self._groups)
+
+    def get_group(self, group_id: str) -> list[str] | None:
+        return self._groups.get(group_id)
+
+    # ── Preview ────────────────────────────────────────────────────────
+
+    def compute_frame_one(self, layout_id: str, effect: str,
+                          params: dict | None = None) -> dict:
+        """Compute a single frame without starting an effect loop (preview)."""
+        ls = self._get(layout_id)
+        if not ls.lights:
+            return {}
+        # Store original params, apply preview params temporarily
+        orig_params = dict(ls.current_params)
+        if params:
+            ls.current_params.update(params)
+        ls.current_params.setdefault("color", orig_params.get("color", (255, 0, 0)))
+        ls.current_params.setdefault("color2", orig_params.get("color2", (0, 0, 255)))
+        ls.current_params.setdefault("brightness", orig_params.get("brightness", 128))
+        ls.current_params.setdefault("speed", orig_params.get("speed", 50))
+        ls.current_params.setdefault("transition", orig_params.get("transition", 0.5))
+        ls.current_params.setdefault("direction", "forward")
+        result = self._compute_frame(effect, ls, 0)
+        # Restore
+        ls.current_params.clear()
+        ls.current_params.update(orig_params)
+        return result
     # ── Effects ────────────────────────────────────────────────────────
 
     def start_effect(self, layout_id: str, effect: str,
                      color: tuple | None = None,
                      color2: tuple | None = None,
                      brightness: int = 50, speed: int = 50,
-                     transition: float = 0.5) -> None:
+                     transition: float = 0.5,
+                     direction: str = "forward",
+                     audio_entity_id: str | None = None,
+                     effect_per_zone: dict | None = None,
+                     sequence: list[dict] | None = None) -> None:
         ls = self._get(layout_id)
         self.stop_effect(layout_id)
 
@@ -157,6 +227,12 @@ class LightFXEngine:
             "brightness": int(brightness * 2.55),  # 0-100 → 0-255
             "speed": speed,
             "transition": transition,
+            "direction": direction,
+            "audio_entity_id": audio_entity_id,
+            "effect_per_zone": effect_per_zone,
+            "sequence": sequence,
+            "sequence_index": 0,
+            "sequence_elapsed": 0.0,
         }
         ls.running = True
         interval = max(0.05, 1.0 - (speed / 100) * 0.95)
@@ -200,9 +276,62 @@ class LightFXEngine:
             return
 
         tick = 0
+        audio_level = 1.0
+        if p := ls.current_params.get("audio_entity_id"):
+            _last_audio = ls.current_params.get("_last_audio_level", 1.0)
+            audio_level = _last_audio
+
+        seq_index = 0
+        seq_elapsed = 0.0
+
         try:
             while ls.running:
-                states = self._compute_frame(effect, ls, tick)
+                # Audio reactivity: read volume from audio entity
+                if audio_entity_id := ls.current_params.get("audio_entity_id"):
+                    audio_state = self._hass.states.get(audio_entity_id)
+                    if audio_state:
+                        vol_level = audio_state.attributes.get("volume_level", 1.0)
+                        audio_level = max(0.05, vol_level)
+                        ls.current_params["_last_audio_level"] = audio_level
+                    else:
+                        audio_level = 1.0
+                    # Modulate brightness by audio level
+                    base_brightness = ls.current_params.get("_base_brightness",
+                        ls.current_params.get("brightness", 128))
+                    ls.current_params["brightness"] = max(1, int(base_brightness * audio_level))
+
+                # Effect sequencer: advance through sequence steps
+                if seq := ls.current_params.get("sequence"):
+                    if seq_index < len(seq):
+                        step = seq[seq_index]
+                        dur = step.get("duration_seconds", 10)
+                        seq_elapsed += interval
+                        if seq_elapsed >= dur:
+                            seq_index += 1
+                            seq_elapsed = 0.0
+                    if seq_index < len(seq):
+                        step = seq[seq_index]
+                        # Apply step params
+                        step_effect = step.get("effect", effect)
+                        step_params = ls.current_params.copy()
+                        step_params["color"] = _hex_or_rgb(step.get("color", None), step_params["color"])
+                        step_params["color2"] = _hex_or_rgb(step.get("color2", None), step_params["color2"])
+                        step_params["direction"] = step.get("direction", ls.current_params.get("direction", "forward"))
+                        if "speed" in step:
+                            step_params["speed"] = step["speed"]
+                        if "brightness" in step:
+                            # brightness in step is 0-100, convert to 0-255
+                            step_params["brightness"] = int(step["brightness"] * 2.55)
+                        current_effect_for_frame = step_effect
+                        ls.current_params.update(step_params)
+                    else:
+                        # Sequence complete — stop gracefully
+                        ls.running = False
+                        continue
+                else:
+                    current_effect_for_frame = effect
+
+                states = self._compute_frame(current_effect_for_frame, ls, tick)
                 calls = []
                 for entity_id, sv in states.items():
                     calls.append(
@@ -228,6 +357,27 @@ class LightFXEngine:
                        tick: int) -> dict[str, dict]:
         """Compute per-light state for this frame tick."""
         p = ls.current_params
+
+        # Zone-aware: dispatch per-zone effects
+        effect_per_zone = p.get("effect_per_zone")
+        if effect_per_zone and len(effect_per_zone) > 0:
+            result = {}
+            zones_in_layout = set(lp.zone for lp in ls.lights)
+            for zone in zones_in_layout:
+                zone_effect = effect_per_zone.get(zone, effect)
+                zone_lights = [lp for lp in ls.lights if lp.zone == zone]
+                if not zone_lights:
+                    continue
+                # Compute zone frame on a sub-layout context
+                sub_params = dict(p)
+                sub_params["_zone_lights"] = zone_lights
+                sub_result = self._compute_frame(zone_effect, ls, tick)
+                # Filter result to only this zone
+                for eid, state in sub_result.items():
+                    if any(lp.entity_id == eid for lp in zone_lights):
+                        result[eid] = state
+            return result
+
         brightness = p["brightness"]
         speed = p["speed"]
         trans = p["transition"]
@@ -235,7 +385,15 @@ class LightFXEngine:
         c2 = p["color2"]
 
         n = len(ls.lights)
-        t = tick * (speed / 25)  # phase accumulator
+        t_raw = tick * (speed / 25)
+        if p.get("direction", "forward") == "reverse":
+            t = -t_raw
+        elif p.get("direction", "forward") == "bounce":
+            period = max(1, 100 // max(1, int(speed)))
+            phase = (t_raw / period) % 2
+            t = t_raw * (1 if phase < 1 else -1)
+        else:
+            t = t_raw
 
         if effect == "rainbow":
             return {

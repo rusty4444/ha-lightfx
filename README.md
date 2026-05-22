@@ -15,13 +15,20 @@ Define room layouts, map lights to positions, and run ambient effects — rainbo
 - **`ha_lightfx.remove_light`** — remove a light from a layout
 - **`ha_lightfx.start_effect`** — run an effect with color, brightness, speed, transition config
 - **`ha_lightfx.stop_effect`** — stop and optionally restore lights to previous state
-- Layouts persist across HA restarts (via HA storage)
+- Layouts persist across HA restarts (via HA storage),
 
-### 10 Built-in Effects
+### Extended Services
+- **`ha_lightfx.create_profile`** — save an effect preset (name + effect config)
+- **`ha_lightfx.list_profiles`** — list saved effect presets
+- **`ha_lightfx.create_group`** — group multiple layouts for synchronized effects
+- **`ha_lightfx.start_sequence`** — run a timed multi-effect sequence on a layout
+- **`ha_lightfx.start_layout_group`** — run the same effect synchronously on all layouts in a group
+
+### 10 Built-in Effects + Zone-aware + Direction + Audio Reactivity
 
 | Effect | Description |
 |--------|-------------|
-| **Rainbow** | Smooth hue sweep across all lights based on position |
+| **Rainbow** | Smooth hue sweep across all lights based on position (respects direction) |
 | **Chase** | Single light chases around the room |
 | **Breathe** | Slow fade in/out on primary color |
 | **Strobe** | Alternating on/off flash |
