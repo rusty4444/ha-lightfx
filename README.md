@@ -1,4 +1,11 @@
 # HA LightFX
+<p align="center">
+  <a href="https://buymeacoffee.com/rusty4" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+  </a>
+</p>
+
+
 
 **Version 1.0.0** — Virtual WLED-inspired light effects for Home Assistant.
 
