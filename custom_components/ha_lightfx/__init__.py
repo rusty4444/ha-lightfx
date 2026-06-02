@@ -11,7 +11,7 @@ import asyncio
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
@@ -129,6 +129,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_LIST_LAYOUTS, handle_list_layouts,
         schema=vol.Schema({}),
+        supports_response=SupportsResponse.ONLY,
     )
 
     # ── add_light ──────────────────────────────────────────────────
@@ -142,7 +143,8 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             call.data["entity_id"],
             call.data["x"],
             call.data["y"],
-            call.data.get("zone", "other"),
+            z=call.data.get("z", 0),
+            zone=call.data.get("zone", "other"),
         )
         await _save(hass)
 
@@ -153,6 +155,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             vol.Required("entity_id"): cv.entity_id,
             vol.Required("x"): vol.All(vol.Coerce(int), vol.Range(0, 100)),
             vol.Required("y"): vol.All(vol.Coerce(int), vol.Range(0, 100)),
+            vol.Optional("z", default=0): vol.All(vol.Coerce(int), vol.Range(0, 100)),
             vol.Optional("zone", default="other"): vol.In(
                 ["ceiling", "wall", "accent", "floor", "other"]
             ),
@@ -254,6 +257,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_LIST_PROFILES, handle_list_profiles,
         schema=vol.Schema({}),
+        supports_response=SupportsResponse.ONLY,
     )
 
     # ── create_group ───────────────────────────────────────────────
@@ -277,6 +281,15 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         schema=vol.Schema({vol.Required("group_id"): cv.string}),
     )
 
+    # ── list_groups ──────────────────────────────────────────────────
+    async def handle_list_groups(call: ServiceCall) -> dict:
+        return engine.list_groups()
+    hass.services.async_register(
+        DOMAIN, SERVICE_LIST_GROUPS, handle_list_groups,
+        schema=vol.Schema({}),
+        supports_response=SupportsResponse.ONLY,
+    )
+
     # ── start_sequence ─────────────────────────────────────────────
     async def handle_start_sequence(call: ServiceCall) -> None:
         lid = call.data["layout_id"]
@@ -292,10 +305,10 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         DOMAIN, SERVICE_START_SEQUENCE, handle_start_sequence,
         schema=vol.Schema({
             vol.Required("layout_id"): cv.string,
-            vol.Optional("effect", default="rainbow"): cv.string,
+            vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
             vol.Optional("brightness", default=50): vol.All(vol.Coerce(int), vol.Range(0, 100)),
             vol.Required("sequence"): vol.All(cv.ensure_list, [{
-                vol.Required("effect"): cv.string,
+                vol.Required("effect"): vol.In(EFFECTS),
                 vol.Required("duration_seconds"): vol.All(vol.Coerce(int), vol.Range(1, 3600)),
                 vol.Optional("color"): _color_or_none,
                 vol.Optional("color2"): _color_or_none,
@@ -340,7 +353,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
 
     # ── preview_effect ─────────────────────────────────────────────
     async def handle_preview_effect(call: ServiceCall) -> dict | None:
-        if call.return_response:
+        if getattr(call, "return_response", False):
             lid = call.data["layout_id"]
             effect = call.data.get("effect", DEFAULT_EFFECT)
             try:
@@ -352,9 +365,10 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         DOMAIN, SERVICE_PREVIEW_EFFECT, handle_preview_effect,
         schema=vol.Schema({
             vol.Required("layout_id"): cv.string,
-            vol.Optional("effect", default=DEFAULT_EFFECT): cv.string,
+            vol.Optional("effect", default=DEFAULT_EFFECT): vol.In(EFFECTS),
             vol.Optional("params"): dict,
         }),
+        supports_response=SupportsResponse.OPTIONAL,
     )
     # ── stop_effect ────────────────────────────────────────────────
     async def handle_stop_effect(call: ServiceCall) -> None:
@@ -428,7 +442,7 @@ async def _register_websocket_api(hass, engine):
             {
                 vol.Required("type"): "ha_lightfx/preview",
                 vol.Required("layout_id"): cv.string,
-                vol.Optional("effect", default="rainbow"): cv.string,
+                vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
                 vol.Optional("params"): dict,
             }
         ),

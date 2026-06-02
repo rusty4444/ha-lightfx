@@ -78,6 +78,14 @@ class HAFXLayoutCard extends LitElement {
     this._loaded = false;
   }
 
+  setConfig(config) {
+    this.config = config || {};
+  }
+
+  static getStubConfig() {
+    return {};
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("pointermove", this._onDragMove);
@@ -161,6 +169,7 @@ class HAFXLayoutCard extends LitElement {
         entity_id: entityId,
         x: currentX,
         y: currentY,
+        z: lp?.z || 0,
         zone: lp?.zone || "other",
       });
     }

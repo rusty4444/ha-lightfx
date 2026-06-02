@@ -132,6 +132,9 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
             lid = self._context_storage.get("delete_layout_id")
             if not lid:
                 lid = user_input.get("layout_id")
+                if lid:
+                    self._context_storage["delete_layout_id"] = lid
+                    return await self.async_step_delete_layout(None)
             if user_input.get("confirm") is True:
                 engine.remove_layout(lid)
                 await self._save()
@@ -328,6 +331,8 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
         if ent not in ents:
             return self.async_abort(reason="light_not_found")
         self._context_storage["edit_entity_id"] = ent
+        if "x" not in user_input and "y" not in user_input:
+            return await self._step_edit_light(lid, ent, engine, None)
         return await self._step_edit_light(lid, ent, engine, user_input)
 
     # ── Remove light ──────────────────────────────────────────────────
@@ -484,9 +489,9 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="create_group",
             data_schema=vol.Schema({
-                vol.Required("group_id"): str,
-                vol.Required("layout_ids"): vol.All(
-                    cv.multi_select, [vol.In(layouts)]
+                vol.Required("group_id"): cv.string,
+                vol.Required("layout_ids"): cv.multi_select(
+                    {lid: info["name"] for lid, info in layouts.items()}
                 ),
             }),
         )
@@ -523,13 +528,13 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
 
 def _LAYOUT_SCHEMA(default_name=""):
     return vol.Schema({
-        vol.Required(CONF_NAME, default=default_name): str,
+        vol.Required(CONF_NAME, default=default_name): cv.string,
     })
 
 
 def _LIGHT_SCHEMA():
     return vol.Schema({
-        vol.Required("entity_id"): str,
+        vol.Required("entity_id"): cv.entity_id,
         vol.Required("x", default=50):
             vol.All(vol.Coerce(int), vol.Range(0, 100)),
         vol.Required("y", default=50):
