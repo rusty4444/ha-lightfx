@@ -234,7 +234,11 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     # ── start_effect ──────────────────────────────────────────────
     _color_or_none = vol.Any(
         cv.color_hex,
-        vol.All(cv.ensure_list, [vol.All(vol.Coerce(int), vol.Range(0, 255))]),
+        vol.All(
+            cv.ensure_list,
+            vol.Length(min=3, max=3),
+            [vol.All(vol.Coerce(int), vol.Range(0, 255))],
+        ),
         None,
     )
 
@@ -454,7 +458,7 @@ def _resolve_color(color):
         if len(color) == 3:
             color = "".join(c * 2 for c in color)
         return tuple(int(color[i : i + 2], 16) for i in (0, 2, 4))
-    if isinstance(color, (list, tuple)):
+    if isinstance(color, (list, tuple)) and len(color) >= 3:
         return tuple(int(c) for c in color[:3])
     return None
 
