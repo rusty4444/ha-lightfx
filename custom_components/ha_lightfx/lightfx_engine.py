@@ -15,6 +15,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from .const import EVENT_EFFECT_STARTED, EVENT_EFFECT_STOPPED
+
 def _hex_or_rgb(val, default):
     """Convert hex string or None to existing default."""
     if val is None:
@@ -230,14 +232,21 @@ class LightFXEngine:
                      effect_per_zone: dict | None = None,
                      sequence: list[dict] | None = None) -> None:
         ls = self._get(layout_id)
-        self.stop_effect(layout_id)
+        had_previous_snapshot = bool(ls.previous_states)
+        self.stop_effect(layout_id, restore=False)
 
-        # Snapshot current states
-        ls.previous_states = {}
-        for lp in ls.lights:
-            state = self._hass.states.get(lp.entity_id)
-            if state:
-                ls.previous_states[lp.entity_id] = dict(state.attributes)
+        # Snapshot current states unless this is replacing an already-running
+        # effect. Replacement should still restore to the state from before the
+        # first effect started, not to an intermediate effect frame.
+        if not had_previous_snapshot:
+            ls.previous_states = {}
+            for lp in ls.lights:
+                state = self._hass.states.get(lp.entity_id)
+                if state:
+                    ls.previous_states[lp.entity_id] = {
+                        "state": state.state,
+                        "attributes": dict(state.attributes),
+                    }
 
         ls.current_effect = effect
         ls.current_params = {
@@ -254,6 +263,10 @@ class LightFXEngine:
             "sequence_elapsed": 0.0,
         }
         ls.running = True
+        self._hass.bus.async_fire(
+            EVENT_EFFECT_STARTED,
+            {"layout_id": layout_id, "effect": effect},
+        )
         interval = max(0.05, 1.0 - (speed / 100) * 0.95)
 
         ls.task = asyncio.create_task(
@@ -269,20 +282,41 @@ class LightFXEngine:
             ls.task.cancel()
             ls.task = None
         if restore and ls.previous_states:
-            for entity_id, attrs in ls.previous_states.items():
+            for entity_id, saved in ls.previous_states.items():
+                # Backward-compatible with old in-memory snapshots that stored
+                # attributes directly. New snapshots preserve the on/off state.
+                if "attributes" in saved or "state" in saved:
+                    previous_state = saved.get("state")
+                    attrs = saved.get("attributes", {})
+                else:
+                    previous_state = "on"
+                    attrs = saved
+
+                if previous_state == "off":
+                    self._hass.async_create_task(
+                        self._call_service("light", "turn_off", entity_id=entity_id)
+                    )
+                    continue
+
                 data = {}
                 if "brightness" in attrs:
                     data["brightness"] = attrs["brightness"]
                 if "rgb_color" in attrs:
                     data["rgb_color"] = attrs["rgb_color"]
-                if "color_temp" in attrs:
+                elif "color_temp" in attrs:
                     data["color_temp"] = attrs["color_temp"]
                 if data:
                     self._hass.async_create_task(
                         self._call_service("light", "turn_on",
                                            entity_id=entity_id, **data)
                     )
-        ls.previous_states = {}
+        if restore:
+            ls.previous_states = {}
+        if ls.current_effect is not None:
+            self._hass.bus.async_fire(
+                EVENT_EFFECT_STOPPED,
+                {"layout_id": layout_id, "effect": ls.current_effect},
+            )
         ls.current_effect = None
 
     # ── Effect implementations ─────────────────────────────────────────
@@ -291,7 +325,11 @@ class LightFXEngine:
                                 interval: float) -> None:
         """Run a continuous effect loop."""
         ls = self._get(layout_id)
+        my_task = asyncio.current_task()
         if not ls.lights:
+            ls.running = False
+            if ls.task is my_task:
+                ls.task = None
             return
 
         tick = 0
@@ -372,7 +410,8 @@ class LightFXEngine:
             _LOGGER.exception("Effect loop error for layout %s", layout_id)
             ls.running = False
         finally:
-            ls.task = None
+            if ls.task is my_task:
+                ls.task = None
 
     def _compute_frame(self, effect: str, ls: LayoutState,
                        tick: int, _depth: int = 0) -> dict[str, dict]:

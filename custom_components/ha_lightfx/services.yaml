@@ -70,6 +70,18 @@ add_light:
           max: 100
           step: 1
           mode: slider
+    z:
+      name: Z Depth
+      description: Optional depth position in the virtual grid (0=front, 100=back).
+      required: false
+      default: 0
+      example: 10
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
     zone:
       name: Zone
       description: Optional zone grouping (e.g. "ceiling", "wall", "accent").
@@ -199,6 +211,41 @@ start_effect:
     effect_per_zone:
       name: Zone Effects
       description: Map zone -> effect for per-zone dispatch.
+      required: false
+      advanced: true
+
+preview_effect:
+  name: Preview Effect
+  description: Compute a single frame of an effect without starting the full loop.
+  fields:
+    layout_id:
+      name: Layout ID
+      description: The layout to preview.
+      required: true
+      example: "living_room"
+      selector:
+        text:
+    effect:
+      name: Effect
+      description: The effect to preview.
+      required: false
+      default: "rainbow"
+      selector:
+        select:
+          options:
+            - "rainbow"
+            - "chase"
+            - "breathe"
+            - "strobe"
+            - "theater_chase"
+            - "fire"
+            - "color_cycle"
+            - "sparkle"
+            - "wave"
+            - "twinkle"
+    params:
+      name: Parameters
+      description: Optional effect parameters (color, brightness, speed, direction, etc.).
       required: false
       advanced: true
 

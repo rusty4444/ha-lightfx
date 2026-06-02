@@ -110,7 +110,7 @@ A built-in custom card (`ha-lightfx-card`) provides:
 2. Add `https://github.com/rusty4444/ha-lightfx` as type **Integration**
 3. Click **Download** on HA LightFX
 4. Restart Home Assistant
-5. Add the card from HACS → Frontend → HA LightFX
+5. Add the card resource manually from `/local/ha-lightfx-card.js` unless you package the frontend as a separate HACS plugin.
 
 ### Manual
 
