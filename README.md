@@ -611,6 +611,10 @@ Version 1.0.2 included the sequential multi-model review fix set:
 - Optional `create_layout` response with generated `layout_id`.
 - Preview failure warning logging.
 
+## AI Used in Development
+
+This project used AI-assisted development for code review, bug fixing, documentation, and release tasks. Multi-model sequential reviews were run across the codebase to catch issues before release. All AI-generated changes were reviewed by a human before merging.
+
 ## License
 
 MIT
