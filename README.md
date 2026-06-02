@@ -6,7 +6,7 @@
   </a>
 </p>
 
-**Version 1.0.2** — virtual WLED-style light effects for ordinary Home Assistant lights.
+**Version 1.0.3** — virtual WLED-style light effects for ordinary Home Assistant lights.
 
 HA LightFX lets you build virtual room layouts, place Home Assistant `light` entities on a 0-100 grid, and run animated effects across them. It works with Zigbee, Z-Wave, Wi-Fi, Matter, Hue, ESPHome, or any other light that Home Assistant can control. No LED strip controller or WLED hardware is required.
 
@@ -117,7 +117,7 @@ Manual dashboard resource registration is required before Home Assistant can sho
 2. Click **Add Resource**.
 3. URL:
    ```text
-   /ha_lightfx/ha-lightfx-card.js?v=1.0.2
+   /ha_lightfx/ha-lightfx-card.js?v=1.0.3
    ```
 4. Resource type: **JavaScript Module**.
 5. Save, then hard refresh the browser if the card does not appear.
@@ -132,7 +132,7 @@ Manual dashboard resource registration is required before Home Assistant can sho
 6. Pick a Home Assistant light entity.
 7. Set its `x`, `y`, optional `z`, and `zone`.
 8. Repeat for each light in the room.
-9. Confirm the dashboard resource `/ha_lightfx/ha-lightfx-card.js?v=1.0.2` is registered as a JavaScript Module.
+9. Confirm the dashboard resource `/ha_lightfx/ha-lightfx-card.js?v=1.0.3` is registered as a JavaScript Module.
 10. Add the dashboard card:
    ```yaml
    type: custom:ha-lightfx-card
@@ -580,9 +580,20 @@ node --check frontend/ha-lightfx-card.js
 node --check custom_components/ha_lightfx/www/ha-lightfx-card.js
 ```
 
-## Release Notes: 1.0.2
+## Release Notes: 1.0.3
 
-Version 1.0.2 includes the sequential multi-model review fix set:
+Version 1.0.3 adds and hardens the Lovelace visual card editor:
+
+- Adds a dashboard visual editor via `getConfigElement()` and `ha-form`.
+- Bundles the Lit-based card source for browser loading through Home Assistant.
+- Adds configurable card options for title, layout selector, zone legend, dragging, refresh button, and stop confirmation.
+- Refreshes card layout state after mutating service calls.
+- Keeps dragged light dot, label, and glow positions aligned.
+- Requests card updates when Home Assistant state changes.
+- Adds explicit HACS integration category metadata.
+- Cleans up unused options-flow abort copy.
+
+Version 1.0.2 included the sequential multi-model review fix set:
 
 - Bundled frontend card served from the integration path.
 - Required brand assets for Home Assistant/HACS.
