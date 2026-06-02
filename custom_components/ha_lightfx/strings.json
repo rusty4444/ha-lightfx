@@ -162,7 +162,6 @@
       }
     },
     "abort": {
-      "single_instance_allowed": "Only one HA LightFX instance is supported.",
       "no_layouts": "No layouts exist yet. Create one in Manage Layouts first.",
       "no_layout": "No layout is currently selected.",
       "layout_not_found": "The requested layout was not found. It may have been deleted.",

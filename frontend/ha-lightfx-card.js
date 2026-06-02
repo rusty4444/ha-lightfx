@@ -213,7 +213,9 @@ class HAFXLayoutCard extends LitElement {
   }
 
   set hass(hass) {
+    const oldHass = this._hass;
     this._hass = hass;
+    if (oldHass !== hass) this.requestUpdate();
   }
 
   firstUpdated() {
@@ -371,14 +373,17 @@ class HAFXLayoutCard extends LitElement {
             const color = ZONE_COLORS[lp.zone] || ZONE_COLORS.other;
             const state = this._hass ? this._hass.states[lp.entity_id] : null;
             const isOn = state && state.state === "on";
+            const isDragging = this._dragState?.entityId === lp.entity_id;
+            const dotX = isDragging && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x;
+            const dotY = isDragging && this._dragState?.currentY !== undefined ? this._dragState.currentY : lp.y;
             return html`
               <g
                 @pointerdown="${(e) => this.config.allow_drag && this._onDragStart(e, lp)}"
                 class="light-group${this._dragState?.entityId === lp.entity_id ? ' dragging' : ''}${this.config.allow_drag ? ' draggable' : ''}"
               >
                 <circle
-                  cx="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x}"
-                  cy="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentY !== undefined ? this._dragState.currentY : lp.y}"
+                  cx="${dotX}"
+                  cy="${dotY}"
                   r="${isOn ? 3.5 : 2.5}"
                   fill="${color}"
                   opacity="${isOn ? 1 : 0.4}"
@@ -386,8 +391,8 @@ class HAFXLayoutCard extends LitElement {
                 />
                 ${isOn
                   ? html`<circle
-                      cx="${lp.x}"
-                      cy="${lp.y}"
+                      cx="${dotX}"
+                      cy="${dotY}"
                       r="5"
                       fill="${color}"
                       opacity="0.3"
@@ -395,8 +400,8 @@ class HAFXLayoutCard extends LitElement {
                     />`
                   : ""}
                 <text
-                  x="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x}"
-                  y="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentY !== undefined ? this._dragState.currentY + 5 : lp.y + 5}"
+                  x="${dotX}"
+                  y="${dotY + 5}"
                   text-anchor="middle"
                   font-size="3"
                   fill="var(--primary-text-color)"
