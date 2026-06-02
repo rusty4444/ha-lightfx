@@ -182,7 +182,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     )
 
     # ── list_layouts ──────────────────────────────────────────────
-    async def handle_list_layouts(call: ServiceCall) -> None:
+    async def handle_list_layouts(call: ServiceCall) -> dict:
         return engine.list_layouts()
     hass.services.async_register(
         DOMAIN, SERVICE_LIST_LAYOUTS, handle_list_layouts,
@@ -314,7 +314,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     )
 
     # ── list_profiles ──────────────────────────────────────────────
-    async def handle_list_profiles(call: ServiceCall) -> None:
+    async def handle_list_profiles(call: ServiceCall) -> dict:
         return engine.list_profiles()
     hass.services.async_register(
         DOMAIN, SERVICE_LIST_PROFILES, handle_list_profiles,
