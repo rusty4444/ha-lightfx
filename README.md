@@ -1,197 +1,389 @@
 # HA LightFX
+
 <p align="center">
   <a href="https://buymeacoffee.com/rusty4" target="_blank">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
   </a>
 </p>
 
+**Version 1.0.2** — virtual WLED-style light effects for ordinary Home Assistant lights.
 
-
-**Version 1.0.2** — Virtual WLED-inspired light effects for Home Assistant.
-
-Define room layouts, map lights to positions, and run ambient effects — rainbow, chase, breathe, strobe, theater chase, fire, color cycle, sparkle, wave, twinkle — across ordinary Zigbee, Z-Wave, Wi-Fi, or any HA-compatible lights. No special hardware needed.
+HA LightFX lets you build virtual room layouts, place Home Assistant `light` entities on a 0-100 grid, and run animated effects across them. It works with Zigbee, Z-Wave, Wi-Fi, Matter, Hue, ESPHome, or any other light that Home Assistant can control. No LED strip controller or WLED hardware is required.
 
 ![HA LightFX](images/repo-preview.png)
 
-## Features
+## What You Get
 
-### Backend Integration
+- A Home Assistant custom integration with persistent layout storage.
+- A visual config-flow editor for layouts, lights, profiles, and layout groups.
+- A bundled Lovelace custom card served by the integration at `/ha_lightfx/ha-lightfx-card.js`.
+- 16 Home Assistant services for automation, previewing, layout management, profiles, groups, and sequences.
+- 10 built-in effects: `rainbow`, `chase`, `breathe`, `strobe`, `theater_chase`, `fire`, `color_cycle`, `sparkle`, `wave`, `twinkle`.
+- Zone-aware effects, direction control, brightness/speed/transition controls, and optional audio-reactive brightness modulation.
 
-- **`ha_lightfx.create_layout`** — create a named layout (e.g. "Living Room")
-- **`ha_lightfx.add_light`** — add a light at a grid position (x, y, zone) with optional 3D depth (z-axis)
-- **`ha_lightfx.remove_light`** — remove a light from a layout
-- **`ha_lightfx.start_effect`** — run an effect with color, brightness, speed, transition config
-- **`ha_lightfx.stop_effect`** — stop and optionally restore lights to previous state
-- Layouts persist across HA restarts (via HA storage),
+## Supported Effects
 
-### Extended Services
-- **`ha_lightfx.create_profile`** — save an effect preset (name + effect config)
-- **`ha_lightfx.list_profiles`** — list saved effect presets
-- **`ha_lightfx.create_group`** — group multiple layouts for synchronized effects
-- **`ha_lightfx.start_sequence`** — run a timed multi-effect sequence on a layout
-- **`ha_lightfx.start_layout_group`** — run the same effect synchronously on all layouts in a group
-- **`ha_lightfx.list_layouts`** — list all layouts with status and light counts
-- **`ha_lightfx.preview_effect`** — compute a single frame without running the full effect loop (supports return_response)
+| Effect | Description | Main Controls |
+|--------|-------------|---------------|
+| `rainbow` | Smooth hue sweep across lights based on virtual position. | brightness, speed, direction |
+| `chase` | A single active light moves through the layout. | color, brightness, speed, direction |
+| `breathe` | Slow fade in/out using the primary color. | color, brightness, speed |
+| `strobe` | Alternating flash/on-off pulses. | color, brightness, speed |
+| `theater_chase` | Alternating primary/secondary color chase. | color, color2, brightness, speed, direction |
+| `fire` | Warm randomized flicker based on the primary color. | color, brightness, speed |
+| `color_cycle` | Global hue transition across all mapped lights. | brightness, speed |
+| `sparkle` | Random sparkle/twinkle flashes. | brightness, speed |
+| `wave` | HSV wave across the virtual x/y layout. | brightness, speed, direction |
+| `twinkle` | Random twinkling between two colors. | color, color2, brightness, speed |
 
-### 3D Z-Axis Positioning
+## Concepts
 
-Every light has a **depth (z)** coordinate (0 = front, 100 = back) in addition to x/y. The engine tracks z for all effects, enabling future 3D spatial effects. The config flow offers z-depth editing, and the z value is available in the WebSocket API and storage.
+### Layouts
 
-### 10 Built-in Effects + Zone-aware + Direction + Audio Reactivity
+A layout is a named virtual space, such as `Living Room`, `Bedroom`, or `Downstairs`. Layout IDs are generated from the name by lowercasing and replacing spaces with underscores. For example:
 
-| Effect | Description |
-|--------|-------------|
-| **Rainbow** | Smooth hue sweep across all lights based on position (respects direction) |
-| **Chase** | Single light chases around the room |
-| **Breathe** | Slow fade in/out on primary color |
-| **Strobe** | Alternating on/off flash |
-| **Theater Chase** | Classic alternating two-color chase (Cylon/Knight Rider style) |
-| **Fire** | Randomized warm flicker on primary color (seeded for deterministic preview) |
-| **Color Cycle** | Global hue transition |
-| **Sparkle** | Random twinkling white sparkles against black (seeded for deterministic preview) |
-| **Wave** | HSV wave across lights based on position (follows x/y position, not color params) |
-| **Twinkle** | Random on/off twinkling between two colors |
+| Name | Layout ID |
+|------|-----------|
+| `Living Room` | `living_room` |
+| `Kitchen` | `kitchen` |
+| `Downstairs Hall` | `downstairs_hall` |
 
-### Zone-Aware Effects
+### Light Positions
 
-Lights can be tagged with a zone (`ceiling`, `wall`, `accent`, `floor`, `other`). Start an effect with `effect_per_zone` to dispatch different effects to different zones simultaneously — e.g. ceiling lights chase while wall lights breathe.
+Each light has:
 
-### Direction Control
+- `entity_id` — the Home Assistant light entity, for example `light.living_room_lamp`.
+- `x` — horizontal position, 0-100.
+- `y` — vertical position, 0-100.
+- `z` — optional depth, 0-100. Current effects preserve and expose it; future effects can use it for 3D-style spatial animation.
+- `zone` — one of `ceiling`, `wall`, `accent`, `floor`, `other`.
 
-Effects support three direction modes:
-- **forward** — runs from lowest-index light to highest
-- **reverse** — runs from highest to lowest
-- **bounce** — alternates forward/reverse in a triangle wave
+### Zones
 
-### Audio Reactivity
+Zones let you run different effects on different areas in one layout. Example: ceiling lights can run `chase` while wall lights run `breathe`.
 
-Pass an `audio_entity_id` (media player) to `start_effect` and the brightness modulates with the media player's `volume_level` — lights pulse to the music.
+### Profiles
 
-### Effect Sequencer
-
-The `start_sequence` service runs a timed sequence of different effects on a single layout. Each step specifies an effect, duration, and optional color/brightness/speed overrides.
-
-### Effect Profiles
-
-Save named effect presets via `create_profile` and apply them to any layout with one call. Manage profiles through the visual editor or Developer Tools.
+Profiles are named effect presets. They store an effect config so you can reuse it from automations or the visual editor.
 
 ### Layout Groups
 
-Group layouts together with `create_group`, then start/stop effects on all of them simultaneously with `start_layout_group`.
+Layout groups let you run the same effect across several layouts at once, such as `downstairs` containing `living_room`, `kitchen`, and `hallway`.
 
-### Preview Mode
+### Previous State Restore
 
-`preview_effect` computes a single frame of any effect without starting the loop. Use `return_response: true` to capture the computed per-light state. Perfect for visualisers or pre-flight checks.
-
-### Visual Editor (Config Flow)
-
-The integration provides a full visual editor accessible via **Settings → Devices & Services → HA LightFX → Configure** — no YAML required:
-- **Manage Layouts** — create, rename, delete layouts
-- **Manage Lights** — add, edit, remove lights with x/y/z position and zone
-- **Manage Profiles** — create, delete, and apply effect profiles
-- **Manage Groups** — create and delete layout groups
-
-### Lovelace Card
-
-A built-in custom card (`ha-lightfx-card`) provides:
-- Layout selector buttons
-- 2D grid visualization of lights with zone coloring
-- Effect dropdown, dual color pickers, brightness/speed sliders
-- Play/Stop controls with state-aware enabling
-- Draggable light dots (drag to reposition on the 2D grid)
-
-![Preview](https://img.shields.io/badge/status-beta-yellow)
+When an effect starts, HA LightFX stores the previous state of every mapped light. `ha_lightfx.stop_effect` can restore those previous states with `restore_previous: true`.
 
 ## Installation
 
-### HACS (recommended)
+### HACS Installation (Recommended)
 
-1. Open HACS → Integrations → Custom Repositories
-2. Add `https://github.com/rusty4444/ha-lightfx` as type **Integration**
-3. Click **Download** on HA LightFX
-4. Restart Home Assistant
-5. Add the dashboard resource `/ha_lightfx/ha-lightfx-card.js` as a **JavaScript Module**
+1. Open **HACS → Integrations → ⋮ → Custom repositories**.
+2. Add this repository URL:
+   ```text
+   https://github.com/rusty4444/ha-lightfx
+   ```
+3. Select category **Integration**.
+4. Click **Add**.
+5. Find **HA LightFX** in HACS and click **Download**.
+6. Restart Home Assistant.
+7. Go to **Settings → Devices & Services → Add Integration** and search for **HA LightFX**.
 
-### Manual
+### Manual Installation
 
-1. Copy `custom_components/ha_lightfx/` to your HA `config/custom_components/` directory
-2. Restart Home Assistant
-3. Add resource: `/ha_lightfx/ha-lightfx-card.js` as a **JavaScript Module**
+1. Download or clone this repository.
+2. Copy the integration folder:
+   ```text
+   custom_components/ha_lightfx/
+   ```
+   into your Home Assistant config folder:
+   ```text
+   /config/custom_components/ha_lightfx/
+   ```
+3. Restart Home Assistant.
+4. Go to **Settings → Devices & Services → Add Integration** and search for **HA LightFX**.
 
-## Setup
+### Dashboard Resource
 
-1. Go to **Settings → Devices & Services → Add Integration** → search "HA LightFX"
-2. Click **Configure** on the HA LightFX entry to open the **visual editor**
-3. Use **Manage Layouts → Create Layout** to add your first layout (e.g. "Living Room")
-4. Use **Manage Lights → pick your layout → Add Light** to add lights with grid position (x, y, z depth) and zone tag (ceiling/wall/accent/floor/other)
-5. Use **Manage Profiles/Groups** for advanced workflows
-6. Add the card to a dashboard: **Add Card → Custom: HA LightFX**
+The Lovelace card is bundled inside the integration and served at:
 
-Alternatively, everything is available via services (Developer Tools → Services):
-
-```yaml
-# Create a layout
-service: ha_lightfx.create_layout
-data:
-  name: "Living Room"
+```text
+/ha_lightfx/ha-lightfx-card.js
 ```
 
+Add it as a dashboard resource if Home Assistant does not auto-load it:
+
+1. Open **Settings → Dashboards → Resources**.
+2. Click **Add Resource**.
+3. URL:
+   ```text
+   /ha_lightfx/ha-lightfx-card.js
+   ```
+4. Resource type: **JavaScript Module**.
+5. Save, then hard refresh the browser if the card does not appear.
+
+## Quick Start
+
+1. Install the integration and restart Home Assistant.
+2. Add the integration from **Settings → Devices & Services → Add Integration → HA LightFX**.
+3. Open the integration entry and click **Configure**.
+4. Choose **Manage Layouts → Create Layout** and create a layout, for example `Living Room`.
+5. Choose **Manage Lights → Add Light**.
+6. Pick a Home Assistant light entity.
+7. Set its `x`, `y`, optional `z`, and `zone`.
+8. Repeat for each light in the room.
+9. Add the dashboard card:
+   ```yaml
+   type: custom:ha-lightfx-card
+   ```
+10. Select the layout, choose an effect, and press **Play**.
+
+## Lovelace Card
+
+The built-in card type is:
+
 ```yaml
-# Add a light
+type: custom:ha-lightfx-card
+```
+
+The card auto-discovers layouts through the integration WebSocket API. No card-level YAML options are required.
+
+The card provides:
+
+- Layout selector buttons.
+- 2D layout visualization.
+- Zone-colored light dots.
+- Drag-and-drop light repositioning.
+- Effect selector.
+- Primary and secondary color pickers.
+- Brightness and speed sliders.
+- Play/Stop controls.
+
+## Visual Editor
+
+Open **Settings → Devices & Services → HA LightFX → Configure**.
+
+Available menus:
+
+- **Manage Layouts** — create and delete layouts.
+- **Manage Lights** — add, update, and remove mapped lights.
+- **Manage Profiles** — create and delete effect profiles.
+- **Manage Groups** — create and delete layout groups.
+
+The visual editor is the recommended setup path. Services are available for automation and advanced users.
+
+## Services Reference
+
+All services use the domain `ha_lightfx`.
+
+| Service | Required Fields | Optional Fields | Response Support | Description |
+|---------|-----------------|-----------------|------------------|-------------|
+| `create_layout` | `name` | `icon` | Optional | Create a layout. With `return_response: true`, returns the generated `layout_id`. |
+| `remove_layout` | `layout_id` | — | No | Delete a layout. |
+| `list_layouts` | — | — | Required | Return all layouts, light counts, and status. |
+| `add_light` | `layout_id`, `entity_id`, `x`, `y` | `z`, `zone` | No | Add or update a light's layout position. |
+| `remove_light` | `layout_id`, `entity_id` | — | No | Remove a light from a layout. |
+| `start_effect` | `layout_id` | `effect`, `color`, `color2`, `brightness`, `speed`, `transition`, `direction`, `audio_entity_id`, `effect_per_zone` | No | Start an effect loop. |
+| `stop_effect` | `layout_id` | `restore_previous` | No | Stop an effect and optionally restore previous light states. |
+| `preview_effect` | `layout_id` | `effect`, `params` | Optional | Compute one preview frame without starting an effect. |
+| `create_profile` | `name` | `config` | No | Save an effect profile. |
+| `delete_profile` | `profile_id` | — | No | Delete a profile. |
+| `list_profiles` | — | — | Required | Return all saved profiles. |
+| `create_group` | `group_id`, `layout_ids` | — | No | Create or replace a layout group. |
+| `delete_group` | `group_id` | — | No | Delete a layout group. |
+| `list_groups` | — | — | Required | Return all layout groups. |
+| `start_sequence` | `layout_id`, `sequence` | `effect`, `brightness` | No | Run timed effect steps on one layout. |
+| `start_layout_group` | `group_id` | `effect`, `color`, `color2`, `brightness`, `speed`, `transition`, `direction` | No | Start the same effect across a layout group. |
+
+### Common Field Values
+
+| Field | Accepted Values |
+|-------|-----------------|
+| `effect` | `rainbow`, `chase`, `breathe`, `strobe`, `theater_chase`, `fire`, `color_cycle`, `sparkle`, `wave`, `twinkle` |
+| `color`, `color2` | RGB list such as `[255, 0, 0]` or a hex string where supported by service calls. |
+| `brightness` | Integer 0-100. |
+| `speed` | Integer 1-100. |
+| `transition` | Seconds, 0.1-5.0. |
+| `direction` | `forward`, `reverse`, `bounce`. |
+| `zone` | `ceiling`, `wall`, `accent`, `floor`, `other`. |
+
+## Service Examples
+
+### Create a Layout and Get the ID
+
+```yaml
+service: ha_lightfx.create_layout
+return_response: true
+data:
+  name: "Living Room"
+  icon: mdi:sofa
+```
+
+Response:
+
+```yaml
+layout_id: living_room
+```
+
+### Add Lights to a Layout
+
+```yaml
 service: ha_lightfx.add_light
 data:
   layout_id: living_room
   entity_id: light.living_room_ceiling
   x: 50
-  y: 30
+  y: 20
   z: 10
   zone: ceiling
 ```
 
 ```yaml
-# Run an effect
+service: ha_lightfx.add_light
+data:
+  layout_id: living_room
+  entity_id: light.floor_lamp
+  x: 20
+  y: 80
+  z: 0
+  zone: accent
+```
+
+### Start a Basic Effect
+
+```yaml
 service: ha_lightfx.start_effect
 data:
   layout_id: living_room
   effect: rainbow
   brightness: 60
   speed: 40
+  transition: 0.5
+  direction: forward
 ```
 
-> The visual editor is the recommended way to manage layouts and lights — no YAML knowledge required.
-
-## Dashboard Card Configuration
-
-Add `ha-lightfx-card` as a custom card. No YAML config needed — the card auto-discovers layouts via the HA WebSocket API. The integration serves the bundled card at `/ha_lightfx/ha-lightfx-card.js`.
+### Start a Two-Color Effect
 
 ```yaml
-type: custom:ha-lightfx-card
+service: ha_lightfx.start_effect
+data:
+  layout_id: living_room
+  effect: theater_chase
+  color: [255, 0, 0]
+  color2: [0, 0, 255]
+  brightness: 70
+  speed: 50
 ```
 
-## Services Reference
+### Stop and Restore Previous Light States
 
-| Service | Parameters | Description |
-|---------|-----------|-------------|
-| `create_layout` | `name` (required), `icon` (optional) | New layout |
-| `remove_layout` | `layout_id` | Delete layout |
-| `list_layouts` | — | Get all layouts and status |
-| `add_light` | `layout_id`, `entity_id`, `x` (0-100), `y` (0-100), `z` (0-100, optional), `zone` | Add light to layout |
-| `remove_light` | `layout_id`, `entity_id` | Remove light |
-| `start_effect` | `layout_id`, `effect`, `color`, `color2`, `brightness`, `speed`, `transition`, `direction`, `audio_entity_id`, `effect_per_zone` | Run effect |
-| `stop_effect` | `layout_id`, `restore_previous` | Stop effect |
-| `preview_effect` | `layout_id`, `effect`, `params` | Compute single preview frame |
-| `create_profile` | `name`, `config` | Save effect profile |
-| `delete_profile` | `profile_id` | Delete profile |
-| `list_profiles` | — | List all profiles |
-| `create_group` | `group_id`, `layout_ids` | Group layouts for sync |
-| `delete_group` | `group_id` | Delete group |
-| `list_groups` | — | List groups |
-| `start_sequence` | `layout_id`, `effect`, `sequence` (array of steps with `effect`, `duration_seconds`), `brightness` | Run timed effect sequence |
-| `start_layout_group` | `group_id`, `effect`, `color`, `color2`, `brightness`, `speed`, `transition`, `direction` | Sync effect on group |
+```yaml
+service: ha_lightfx.stop_effect
+data:
+  layout_id: living_room
+  restore_previous: true
+```
+
+### Preview One Frame
+
+```yaml
+service: ha_lightfx.preview_effect
+return_response: true
+data:
+  layout_id: living_room
+  effect: fire
+  params:
+    color: [255, 100, 0]
+    brightness: 70
+    speed: 40
+```
+
+### Zone-Aware Effects
+
+```yaml
+service: ha_lightfx.start_effect
+data:
+  layout_id: living_room
+  brightness: 60
+  speed: 45
+  effect_per_zone:
+    ceiling: chase
+    wall: breathe
+    accent: sparkle
+    floor: wave
+```
+
+### Audio-Reactive Effect
+
+`audio_entity_id` can point at a `media_player`. HA LightFX uses the player's `volume_level` attribute to modulate effect brightness.
+
+```yaml
+service: ha_lightfx.start_effect
+data:
+  layout_id: living_room
+  effect: fire
+  color: [255, 100, 0]
+  brightness: 70
+  audio_entity_id: media_player.living_room
+```
+
+### Create a Profile
+
+```yaml
+service: ha_lightfx.create_profile
+data:
+  name: "Warm Fire"
+  config:
+    effect: fire
+    color: [255, 120, 20]
+    brightness: 55
+    speed: 35
+```
+
+### Create a Layout Group
+
+```yaml
+service: ha_lightfx.create_group
+data:
+  group_id: downstairs
+  layout_ids:
+    - living_room
+    - kitchen
+    - hallway
+```
+
+### Start an Effect Across a Group
+
+```yaml
+service: ha_lightfx.start_layout_group
+data:
+  group_id: downstairs
+  effect: rainbow
+  brightness: 50
+  speed: 40
+```
+
+### Run a Sequence
+
+```yaml
+service: ha_lightfx.start_sequence
+data:
+  layout_id: living_room
+  brightness: 80
+  sequence:
+    - effect: rainbow
+      duration_seconds: 30
+    - effect: chase
+      duration_seconds: 15
+      speed: 60
+    - effect: strobe
+      duration_seconds: 10
+      brightness: 100
+```
 
 ## Automation Examples
 
-### Motion-triggered rainbow on arrival
+### Motion-Triggered Rainbow After Sunset
 
 ```yaml
 alias: "Rainbow on Arrival"
@@ -217,7 +409,7 @@ action:
       restore_previous: true
 ```
 
-### Breathe during sleep mode
+### Bedtime Breathe
 
 ```yaml
 alias: "Bedtime Breathe"
@@ -234,10 +426,10 @@ action:
       speed: 20
 ```
 
-### Effect sequence (party mode)
+### Doorbell Party Sequence
 
 ```yaml
-alias: "Party Mode Sequence"
+alias: "Doorbell Party Sequence"
 trigger:
   - platform: state
     entity_id: binary_sensor.doorbell
@@ -258,53 +450,109 @@ action:
           brightness: 100
 ```
 
-### Audio-reactive fire effect
+## Troubleshooting
 
-```yaml
-alias: "Party Audio Fire"
-trigger:
-  - platform: state
-    entity_id: binary_sensor.motion_living_room
-    to: "on"
-action:
-  - service: ha_lightfx.start_effect
-    data:
-      layout_id: living_room
-      effect: fire
-      color: [255, 100, 0]
-      audio_entity_id: media_player.living_room
-```
+### The card is not available in the dashboard card picker
 
-### Layout group sync
+- Confirm the integration is installed and Home Assistant has been restarted.
+- Confirm the dashboard resource exists:
+  ```text
+  /ha_lightfx/ha-lightfx-card.js
+  ```
+- Resource type must be **JavaScript Module**.
+- Hard refresh the browser: Ctrl+Shift+R / Cmd+Shift+R.
+- Check browser dev tools for failed requests to `/ha_lightfx/ha-lightfx-card.js`.
 
-```yaml
-alias: "Sync Downstairs"
-action:
-  - service: ha_lightfx.start_layout_group
-    data:
-      group_id: downstairs
-      effect: rainbow
-      brightness: 50
-```
+### A layout has no lights
+
+- Open **Configure → Manage Lights** and add at least one light.
+- Or call `ha_lightfx.add_light` with the correct `layout_id` and `entity_id`.
+- Use `ha_lightfx.list_layouts` with `return_response: true` to inspect current layout state.
+
+### Effects start but lights do not visibly change
+
+- Confirm the mapped entities are real `light` entities and are available in Home Assistant.
+- Some lights may not support RGB color; try effects that rely mostly on brightness or use supported color modes.
+- Try lower `transition` and higher `brightness`.
+- Check Home Assistant logs for `ha_lightfx` warnings.
+
+### Effects stop but lights do not restore
+
+- Use:
+  ```yaml
+  service: ha_lightfx.stop_effect
+  data:
+    layout_id: living_room
+    restore_previous: true
+  ```
+- Restore only applies to lights that were part of the layout when the effect started.
+
+### A grouped layout was deleted
+
+`start_layout_group` skips stale/missing layout IDs and logs a warning. Recreate the missing layout or update the group with `create_group` using the current list of layout IDs.
+
+## Storage and Data
+
+HA LightFX stores layouts, lights, profiles, and groups in Home Assistant storage under the integration's storage key. Data persists across Home Assistant restarts.
+
+Stored data includes:
+
+- Layout names and icons.
+- Light entity IDs and x/y/z/zone positions.
+- Effect profiles.
+- Layout groups.
 
 ## Development
 
-```bash
-# Integration
-custom_components/ha_lightfx/
-├── __init__.py          # Entry point, services, WebSocket API
-├── manifest.json        # HA manifest
-├── config_flow.py       # Config flow (single instance)
-├── const.py             # Constants
-├── strings.json         # Config flow strings
-├── services.yaml        # Service definitions
-├── lightfx_engine.py    # Effect engine
-└── translations/
-    └── en.json          # English translations
+Repository structure:
 
-# Frontend
-custom_components/ha_lightfx/www/ha-lightfx-card.js   # Bundled Lovelace custom card (LitElement)
+```text
+custom_components/ha_lightfx/
+├── __init__.py             # Integration setup, service registration, WebSocket API, frontend serving
+├── config_flow.py          # Initial setup and visual configuration editor
+├── const.py                # Constants, service names, effects, storage version
+├── lightfx_engine.py       # Effect engine and persistence model
+├── manifest.json           # Home Assistant manifest
+├── services.yaml           # Service definitions shown in Developer Tools
+├── strings.json            # Config-flow UI strings
+├── translations/
+│   └── en.json             # English translations
+├── brand/
+│   ├── icon.png
+│   ├── icon@2x.png
+│   ├── logo.png
+│   └── logo@2x.png
+└── www/
+    └── ha-lightfx-card.js  # Bundled Lovelace custom card
 ```
+
+Useful validation commands:
+
+```bash
+python3 -m py_compile custom_components/ha_lightfx/*.py
+python3 -m json.tool custom_components/ha_lightfx/manifest.json >/dev/null
+python3 -m json.tool hacs.json >/dev/null
+python3 -m json.tool custom_components/ha_lightfx/strings.json >/dev/null
+python3 -m json.tool custom_components/ha_lightfx/translations/en.json >/dev/null
+ruby -e 'require "yaml"; YAML.load_file("custom_components/ha_lightfx/services.yaml")'
+node --check custom_components/ha_lightfx/www/ha-lightfx-card.js
+```
+
+## Release Notes: 1.0.2
+
+Version 1.0.2 includes the sequential multi-model review fix set:
+
+- Bundled frontend card served from the integration path.
+- Required brand assets for Home Assistant/HACS.
+- README, manifest, and HACS metadata alignment.
+- Safer options-flow context handling.
+- Service cleanup on unload.
+- Stale layout handling in layout groups.
+- Profile/layout name validation improvements.
+- RGB color list length validation.
+- Storage version alignment.
+- Optional `create_layout` response with generated `layout_id`.
+- Preview failure warning logging.
 
 ## License
 
