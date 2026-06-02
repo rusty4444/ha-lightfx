@@ -35,7 +35,8 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
     """Full visual editor for layouts and lights."""
 
     def __init__(self, config_entry):
-        self.config_entry = config_entry
+        super().__init__()
+        self._config_entry = config_entry
         self._context_storage = {}  # cross-step state (layout_id, etc.)
 
     # ── Top-level menu ────────────────────────────────────────────────────
