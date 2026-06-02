@@ -386,9 +386,14 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         transition = call.data.get("transition", DEFAULT_TRANSITION)
         direction = call.data.get("direction", "forward")
         for lid in layout_ids:
-            engine.start_effect(lid, effect=effect, color=color, color2=color2,
-                                brightness=brightness, speed=speed,
-                                transition=transition, direction=direction)
+            try:
+                engine.start_effect(lid, effect=effect, color=color, color2=color2,
+                                    brightness=brightness, speed=speed,
+                                    transition=transition, direction=direction)
+            except ValueError:
+                _LOGGER.warning(
+                    "Skipping missing layout '%s' in layout group '%s'", lid, group_id
+                )
     hass.services.async_register(
         DOMAIN, SERVICE_START_LAYOUT_GROUP, handle_start_layout_group,
         schema=vol.Schema({

@@ -408,7 +408,7 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="create_profile",
             data_schema=vol.Schema({
-                vol.Required("name"): str,
+                vol.Required("name"): cv.string,
                 vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
                 vol.Optional("brightness", default=50):
                     vol.All(vol.Coerce(int), vol.Range(0, 100)),

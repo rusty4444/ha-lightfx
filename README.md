@@ -303,7 +303,7 @@ custom_components/ha_lightfx/
     └── en.json          # English translations
 
 # Frontend
-www/ha-lightfx-card.js   # Lovelace custom card (LitElement)
+custom_components/ha_lightfx/www/ha-lightfx-card.js   # Bundled Lovelace custom card (LitElement)
 ```
 
 ## License
