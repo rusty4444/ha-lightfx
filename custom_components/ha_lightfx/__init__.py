@@ -8,6 +8,7 @@ wave, twinkle) with no special hardware required.
 
 import logging
 import asyncio
+from pathlib import Path
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -46,6 +47,26 @@ from .lightfx_engine import LightFXEngine
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = []
+FRONTEND_URL = "/ha_lightfx/ha-lightfx-card.js"
+FRONTEND_PATH = Path(__file__).parent / "www" / "ha-lightfx-card.js"
+SERVICE_NAMES = (
+    SERVICE_CREATE_LAYOUT,
+    SERVICE_REMOVE_LAYOUT,
+    SERVICE_LIST_LAYOUTS,
+    SERVICE_START_EFFECT,
+    SERVICE_STOP_EFFECT,
+    SERVICE_ADD_LIGHT,
+    SERVICE_REMOVE_LIGHT,
+    SERVICE_CREATE_PROFILE,
+    SERVICE_DELETE_PROFILE,
+    SERVICE_LIST_PROFILES,
+    SERVICE_CREATE_GROUP,
+    SERVICE_DELETE_GROUP,
+    SERVICE_LIST_GROUPS,
+    SERVICE_PREVIEW_EFFECT,
+    SERVICE_START_SEQUENCE,
+    SERVICE_START_LAYOUT_GROUP,
+)
 
 
 def _check_layout(ls, layout_id):
@@ -70,6 +91,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register services
     _register_services(hass, engine)
 
+    # Serve bundled Lovelace card
+    await _register_frontend(hass)
+
     # Register WebSocket API
     await _register_websocket_api(hass, engine)
 
@@ -88,8 +112,36 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ls.running = False
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
+
+    remaining_entries = [
+        existing
+        for existing in hass.config_entries.async_entries(DOMAIN)
+        if existing.entry_id != entry.entry_id
+    ]
+    if not remaining_entries:
+        for service_name in SERVICE_NAMES:
+            hass.services.async_remove(DOMAIN, service_name)
+
     hass.data.pop(DOMAIN, None)
     return True
+
+
+async def _register_frontend(hass: HomeAssistant) -> None:
+    """Serve the bundled Lovelace card from the integration package."""
+    if not FRONTEND_PATH.exists():
+        _LOGGER.warning("HA LightFX frontend file not found: %s", FRONTEND_PATH)
+        return
+
+    try:
+        from homeassistant.components.http import StaticPathConfig
+    except ImportError:
+        hass.http.register_static_path(
+            FRONTEND_URL, str(FRONTEND_PATH), cache_headers=True
+        )
+    else:
+        await hass.http.async_register_static_paths([
+            StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=True),
+        ])
 
 
 def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
@@ -224,7 +276,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             vol.Optional("direction", default="forward"): vol.In(
                 ["forward", "reverse", "bounce"]
             ),
-            vol.Optional("audio_entity_id"): cv.string,
+            vol.Optional("audio_entity_id"): cv.entity_id,
             vol.Optional("effect_per_zone"): dict,
         }),
     )
