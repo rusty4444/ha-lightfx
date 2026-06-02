@@ -7,6 +7,7 @@ lights entirely through the HA UI — no YAML required.
 
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 
@@ -546,7 +547,9 @@ def _LAYOUT_SCHEMA(default_name=""):
 def _LIGHT_SCHEMA():
     return vol.Schema({
         vol.Optional("_action"): cv.string,
-        vol.Required("entity_id"): cv.string,
+        vol.Required("entity_id"): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="light"),
+        ),
         vol.Required("x", default=50):
             vol.All(vol.Coerce(int), vol.Range(0, 100)),
         vol.Required("y", default=50):
