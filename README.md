@@ -110,14 +110,13 @@ A built-in custom card (`ha-lightfx-card`) provides:
 2. Add `https://github.com/rusty4444/ha-lightfx` as type **Integration**
 3. Click **Download** on HA LightFX
 4. Restart Home Assistant
-5. Add the card resource manually from `/local/ha-lightfx-card.js` unless you package the frontend as a separate HACS plugin.
+5. Add the dashboard resource `/ha_lightfx/ha-lightfx-card.js` as a **JavaScript Module**
 
 ### Manual
 
 1. Copy `custom_components/ha_lightfx/` to your HA `config/custom_components/` directory
-2. Copy `www/ha-lightfx-card.js` to your HA `config/www/` directory
-3. Restart Home Assistant
-4. Add resource: `/local/ha-lightfx-card.js` as a **JavaScript Module**
+2. Restart Home Assistant
+3. Add resource: `/ha_lightfx/ha-lightfx-card.js` as a **JavaScript Module**
 
 ## Setup
 
@@ -163,7 +162,7 @@ data:
 
 ## Dashboard Card Configuration
 
-Add `ha-lightfx-card` as a custom card. No YAML config needed — the card auto-discovers layouts via the HA WebSocket API.
+Add `ha-lightfx-card` as a custom card. No YAML config needed — the card auto-discovers layouts via the HA WebSocket API. The integration serves the bundled card at `/ha_lightfx/ha-lightfx-card.js`.
 
 ```yaml
 type: custom:ha-lightfx-card
@@ -187,7 +186,7 @@ type: custom:ha-lightfx-card
 | `create_group` | `group_id`, `layout_ids` | Group layouts for sync |
 | `delete_group` | `group_id` | Delete group |
 | `list_groups` | — | List groups |
-| `start_sequence` | `layout_id`, `sequence` (array of steps with `effect`, `duration_seconds`), `brightness` | Run timed effect sequence |
+| `start_sequence` | `layout_id`, `effect`, `sequence` (array of steps with `effect`, `duration_seconds`), `brightness` | Run timed effect sequence |
 | `start_layout_group` | `group_id`, `effect`, `color`, `color2`, `brightness`, `speed`, `transition`, `direction` | Sync effect on group |
 
 ## Automation Examples

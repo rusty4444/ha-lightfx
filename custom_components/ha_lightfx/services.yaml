@@ -351,6 +351,24 @@ start_sequence:
       example: "living_room"
       selector:
         text:
+    effect:
+      name: Base Effect
+      description: Default effect context for the sequence.
+      required: false
+      default: "rainbow"
+      selector:
+        select:
+          options:
+            - "rainbow"
+            - "chase"
+            - "breathe"
+            - "strobe"
+            - "theater_chase"
+            - "fire"
+            - "color_cycle"
+            - "sparkle"
+            - "wave"
+            - "twinkle"
     sequence:
       name: Sequence Steps
       description: List of effect steps with duration.

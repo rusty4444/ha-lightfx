@@ -212,8 +212,10 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
             if action == "add":
                 return await self._step_add_light(layout_id)
             if action == "edit" and ent:
+                self._context_storage["edit_entity_id"] = ent
                 return await self._step_edit_light(layout_id, ent, engine)
             if action == "remove" and ent:
+                self._context_storage["remove_entity_id"] = ent
                 return await self._step_remove_light(layout_id, ent, engine)
         else:
             self._context_storage["light_layout_id"] = layout_id
@@ -294,6 +296,7 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
             existing.z = user_input.get("z", existing.z)
             existing.zone = user_input.get("zone", "other")
             await self._save()
+            self._context_storage.pop("edit_entity_id", None)
             return await self._step_list_lights(layout_id, None)
         return self.async_show_form(
             step_id="edit_light",
@@ -338,10 +341,11 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
     # ── Remove light ──────────────────────────────────────────────────
 
     async def _step_remove_light(self, layout_id, entity_id, engine, user_input=None):
-        if user_input is not None and user_input.get("confirm") is True:
-            engine.remove_light(layout_id, entity_id)
-            await self._save()
-            self._context_storage.pop("edit_entity_id", None)
+        if user_input is not None:
+            if user_input.get("confirm") is True:
+                engine.remove_light(layout_id, entity_id)
+                await self._save()
+            self._context_storage.pop("remove_entity_id", None)
             return await self._step_list_lights(layout_id, None)
         return self.async_show_form(
             step_id="remove_light",
@@ -367,10 +371,12 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
                     vol.Required("entity_id"): vol.In(ents),
                 }),
             )
-        ent = user_input.get("entity_id") or self._context_storage.get("edit_entity_id")
+        ent = user_input.get("entity_id") or self._context_storage.get("remove_entity_id")
         if ent not in ents:
             return self.async_abort(reason="light_not_found")
-        self._context_storage["edit_entity_id"] = ent
+        self._context_storage["remove_entity_id"] = ent
+        if "confirm" not in user_input:
+            return await self._step_remove_light(lid, ent, engine, None)
         return await self._step_remove_light(lid, ent, engine, user_input)
 
 
