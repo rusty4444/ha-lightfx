@@ -9,7 +9,7 @@ CONF_NAME = "name"
 
 # Storage keys
 STORAGE_KEY = "ha_lightfx.layouts"
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2
 
 # Effect names (must match frontend)
 EFFECTS = [
@@ -28,7 +28,6 @@ EFFECTS = [
 # Default effect config (0-100 range matches service schema)
 DEFAULT_BRIGHTNESS = 50
 DEFAULT_SPEED = 50
-DEFAULT_COLOR = [255, 255, 255]
 DEFAULT_EFFECT = "rainbow"
 DEFAULT_TRANSITION = 0.5
 
