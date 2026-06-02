@@ -43,6 +43,118 @@ const ZONE_COLORS = {
   other: "#ce93d8",
 };
 
+const DEFAULT_CONFIG = {
+  title: "HA LightFX",
+  default_layout: "",
+  show_layout_selector: true,
+  show_zone_legend: true,
+  allow_drag: true,
+  show_refresh_button: true,
+  confirm_stop: true,
+};
+
+const CARD_SCHEMA = [
+  { name: "title", selector: { text: {} } },
+  { name: "default_layout", selector: { text: {} } },
+  { name: "show_layout_selector", selector: { boolean: {} } },
+  { name: "show_zone_legend", selector: { boolean: {} } },
+  { name: "allow_drag", selector: { boolean: {} } },
+  { name: "show_refresh_button", selector: { boolean: {} } },
+  { name: "confirm_stop", selector: { boolean: {} } },
+];
+
+function fireConfigChanged(element, config) {
+  element.dispatchEvent(new CustomEvent("config-changed", {
+    detail: { config },
+    bubbles: true,
+    composed: true,
+  }));
+}
+
+class HAFXLayoutCardEditor extends LitElement {
+  static get properties() {
+    return {
+      hass: { attribute: false },
+      _config: { state: true },
+    };
+  }
+
+  setConfig(config) {
+    this._config = { ...DEFAULT_CONFIG, ...(config || {}) };
+  }
+
+  _valueChanged(ev) {
+    ev.stopPropagation();
+    const value = ev.detail?.value || {};
+    const config = { ...this._config, ...value };
+    if (!config.default_layout) delete config.default_layout;
+    if (!config.title) config.title = DEFAULT_CONFIG.title;
+    this._config = config;
+    fireConfigChanged(this, config);
+  }
+
+  render() {
+    if (!this._config) return html``;
+    return html`
+      <div class="editor">
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${CARD_SCHEMA}
+          .computeLabel=${this._computeLabel}
+          .computeHelper=${this._computeHelper}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+        <div class="hint">
+          Leave <code>default_layout</code> empty to auto-select the first available layout.
+        </div>
+      </div>
+    `;
+  }
+
+  _computeLabel(schema) {
+    const labels = {
+      title: "Card title",
+      default_layout: "Default layout ID",
+      show_layout_selector: "Show layout selector",
+      show_zone_legend: "Show zone legend",
+      allow_drag: "Allow drag repositioning",
+      show_refresh_button: "Show refresh button",
+      confirm_stop: "Confirm before stopping",
+    };
+    return labels[schema.name] || schema.name;
+  }
+
+  _computeHelper(schema) {
+    const helpers = {
+      default_layout: "Example: living_room. Layout IDs are generated from layout names.",
+      allow_drag: "When enabled, dragging a light dot updates its stored x/y position.",
+      confirm_stop: "Show a confirmation prompt before restoring lights and stopping an effect.",
+    };
+    return helpers[schema.name] || undefined;
+  }
+
+  static get styles() {
+    return css`
+      .editor {
+        display: block;
+        padding: 8px 0;
+      }
+      .hint {
+        color: var(--secondary-text-color);
+        font-size: 12px;
+        line-height: 1.4;
+        margin-top: 8px;
+      }
+      code {
+        background: var(--secondary-background-color);
+        border-radius: 4px;
+        padding: 1px 4px;
+      }
+    `;
+  }
+}
+
 class HAFXLayoutCard extends LitElement {
   static get properties() {
     return {
@@ -79,11 +191,18 @@ class HAFXLayoutCard extends LitElement {
   }
 
   setConfig(config) {
-    this.config = config || {};
+    this.config = { ...DEFAULT_CONFIG, ...(config || {}) };
+    if (this.config.default_layout) {
+      this._selectedLayout = this.config.default_layout;
+    }
+  }
+
+  static getConfigElement() {
+    return document.createElement("ha-lightfx-card-editor");
   }
 
   static getStubConfig() {
-    return {};
+    return { ...DEFAULT_CONFIG };
   }
 
   disconnectedCallback() {
@@ -115,6 +234,12 @@ class HAFXLayoutCard extends LitElement {
         type: "ha_lightfx/layouts",
       });
       this._layouts = result.layouts || {};
+      const layoutIds = Object.keys(this._layouts);
+      if (this.config.default_layout && this._layouts[this.config.default_layout]) {
+        this._selectedLayout = this.config.default_layout;
+      } else if (!this._selectedLayout && layoutIds.length > 0) {
+        this._selectedLayout = layoutIds[0];
+      }
     } catch (err) {
       console.warn("HA LightFX: failed to fetch layouts", err);
       this._layouts = {};
@@ -217,7 +342,7 @@ class HAFXLayoutCard extends LitElement {
     if (!this._selectedLayout) return;
     const layout = this._layouts[this._selectedLayout];
     if (!layout || !layout.running) return;
-    if (!confirm("Stop the running effect? Lights will restore to their previous state.")) return;
+    if (this.config.confirm_stop && !confirm("Stop the running effect? Lights will restore to their previous state.")) return;
     this._callService("stop_effect", {
       layout_id: this._selectedLayout,
       restore_previous: true,
@@ -244,7 +369,10 @@ class HAFXLayoutCard extends LitElement {
             const state = this._hass ? this._hass.states[lp.entity_id] : null;
             const isOn = state && state.state === "on";
             return html`
-              <g @pointerdown="${(e) => this._onDragStart(e, lp)}" class="light-group${this._dragState?.entityId === lp.entity_id ? ' dragging' : ''}">
+              <g
+                @pointerdown="${(e) => this.config.allow_drag && this._onDragStart(e, lp)}"
+                class="light-group${this._dragState?.entityId === lp.entity_id ? ' dragging' : ''}${this.config.allow_drag ? ' draggable' : ''}"
+              >
                 <circle
                   cx="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x}"
                   cy="${this._dragState?.entityId === lp.entity_id && this._dragState?.currentY !== undefined ? this._dragState.currentY : lp.y}"
@@ -276,12 +404,14 @@ class HAFXLayoutCard extends LitElement {
             `;
           })}
         </svg>
-        <!-- Zone legend (only zones present in layout) -->
-        <div class="zone-legend">
-          ${[...new Set(lights.map((l) => l.zone || "other"))].map((z) => html`
-            <span class="zone-tag"><span class="zone-swatch" style="background:${ZONE_COLORS[z] || ZONE_COLORS.other}"></span>${z}</span>
-          `)}
-        </div>
+        ${this.config.show_zone_legend ? html`
+          <!-- Zone legend (only zones present in layout) -->
+          <div class="zone-legend">
+            ${[...new Set(lights.map((l) => l.zone || "other"))].map((z) => html`
+              <span class="zone-tag"><span class="zone-swatch" style="background:${ZONE_COLORS[z] || ZONE_COLORS.other}"></span>${z}</span>
+            `)}
+          </div>
+        ` : ""}
       </div>
     `;
   }
@@ -372,6 +502,8 @@ class HAFXLayoutCard extends LitElement {
       </div>`;
     }
 
+    if (!this.config.show_layout_selector) return "";
+
     return html`
       <div class="layout-list">
         ${lids.map(
@@ -397,8 +529,13 @@ class HAFXLayoutCard extends LitElement {
     return html`
       <ha-card>
         <div class="card-header">
-          <ha-icon icon="mdi:lightbulb-multiple"></ha-icon>
-          <span>HA LightFX</span>
+          <div class="title-wrap">
+            <ha-icon icon="mdi:lightbulb-multiple"></ha-icon>
+            <span>${this.config.title || DEFAULT_CONFIG.title}</span>
+          </div>
+          ${this.config.show_refresh_button ? html`
+            <button class="icon-btn" @click="${this._refreshLayouts}" title="Refresh layouts">↻</button>
+          ` : ""}
         </div>
         <div class="card-content">
           ${this._renderLayoutList()}
@@ -421,11 +558,31 @@ class HAFXLayoutCard extends LitElement {
       .card-header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 8px;
         font-size: 18px;
         font-weight: 500;
         margin-bottom: 16px;
         color: var(--primary-text-color);
+      }
+      .title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .icon-btn {
+        border: 1px solid var(--divider-color);
+        border-radius: 999px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        cursor: pointer;
+        font-size: 18px;
+        height: 32px;
+        line-height: 1;
+        width: 32px;
+      }
+      .icon-btn:hover {
+        border-color: var(--accent-color);
       }
       .card-content {
         display: flex;
@@ -498,7 +655,7 @@ class HAFXLayoutCard extends LitElement {
         height: auto;
         aspect-ratio: 1;
       }
-      .light-group {
+      .light-group.draggable {
         cursor: grab;
       }
       .light-group:active {
@@ -644,6 +801,7 @@ class HAFXLayoutCard extends LitElement {
   }
 }
 
+customElements.define("ha-lightfx-card-editor", HAFXLayoutCardEditor);
 customElements.define("ha-lightfx-card", HAFXLayoutCard);
 
 // Card configuration
