@@ -546,7 +546,7 @@ def _LAYOUT_SCHEMA(default_name=""):
 def _LIGHT_SCHEMA():
     return vol.Schema({
         vol.Optional("_action"): cv.string,
-        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("entity_id"): cv.string,
         vol.Required("x", default=50):
             vol.All(vol.Coerce(int), vol.Range(0, 100)),
         vol.Required("y", default=50):
