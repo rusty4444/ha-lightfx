@@ -6,6 +6,7 @@ Define room layouts, map lights to virtual positions, and run ambient effects
 wave, twinkle) with no special hardware required.
 """
 
+import json
 import logging
 import asyncio
 from pathlib import Path
@@ -95,6 +96,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Serve bundled Lovelace card
     await _register_frontend(hass)
 
+    # Auto-register the card as a Lovelace dashboard resource
+    await _register_lovelace_resource(hass)
+
     # Register WebSocket API
     await _register_websocket_api(hass, engine)
 
@@ -143,6 +147,32 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         await hass.http.async_register_static_paths([
             StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False),
         ])
+
+
+async def _register_lovelace_resource(hass: HomeAssistant) -> None:
+    """Auto-register the card as a Lovelace dashboard resource if not already present."""
+    storage_path = hass.config.path(".storage/lovelace.resources")
+    url = f"/{DOMAIN}/ha-lightfx-card.js"
+
+    # Load existing resources, or start fresh
+    try:
+        if storage_path.exists():
+            data = json.loads(storage_path.read_text("utf-8"))
+        else:
+            data = {"data": {"resources": []}}
+    except Exception:
+        _LOGGER.debug("HA LightFX: could not read lovelace resource storage, skipping auto-registration")
+        return
+
+    resources = data.get("data", {}).get("resources", [])
+    if any(r.get("url") == url for r in resources):
+        return  # already registered
+
+    resources.append({"type": "module", "url": url})
+    data["data"]["resources"] = resources
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_text(json.dumps(data, indent=2), "utf-8")
+    _LOGGER.info("HA LightFX: auto-registered Lovelace resource %s", url)
 
 
 def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
