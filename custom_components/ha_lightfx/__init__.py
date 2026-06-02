@@ -136,11 +136,11 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         from homeassistant.components.http import StaticPathConfig
     except ImportError:
         hass.http.register_static_path(
-            FRONTEND_URL, str(FRONTEND_PATH), cache_headers=True
+            FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False
         )
     else:
         await hass.http.async_register_static_paths([
-            StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=True),
+            StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False),
         ])
 
 

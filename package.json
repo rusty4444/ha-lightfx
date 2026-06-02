@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "build:card": "esbuild frontend/ha-lightfx-card.js --bundle --format=esm --target=es2017 --minify --supported:template-literal=false --outfile=custom_components/ha_lightfx/www/ha-lightfx-card.js"
+  },
+  "dependencies": {
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

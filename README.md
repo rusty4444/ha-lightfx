@@ -111,13 +111,13 @@ The Lovelace card is bundled inside the integration and served at:
 /ha_lightfx/ha-lightfx-card.js
 ```
 
-Add it as a dashboard resource if Home Assistant does not auto-load it:
+Manual dashboard resource registration is required before Home Assistant can show **Custom: HA LightFX** in the card picker or load the card visual editor. Add it as:
 
 1. Open **Settings → Dashboards → Resources**.
 2. Click **Add Resource**.
 3. URL:
    ```text
-   /ha_lightfx/ha-lightfx-card.js
+   /ha_lightfx/ha-lightfx-card.js?v=1.0.2
    ```
 4. Resource type: **JavaScript Module**.
 5. Save, then hard refresh the browser if the card does not appear.
@@ -132,11 +132,12 @@ Add it as a dashboard resource if Home Assistant does not auto-load it:
 6. Pick a Home Assistant light entity.
 7. Set its `x`, `y`, optional `z`, and `zone`.
 8. Repeat for each light in the room.
-9. Add the dashboard card:
+9. Confirm the dashboard resource `/ha_lightfx/ha-lightfx-card.js?v=1.0.2` is registered as a JavaScript Module.
+10. Add the dashboard card:
    ```yaml
    type: custom:ha-lightfx-card
    ```
-10. Select the layout, choose an effect, and press **Play**.
+11. Select the layout, choose an effect, and press **Play**.
 
 ## Lovelace Card
 
@@ -553,7 +554,17 @@ custom_components/ha_lightfx/
 │   ├── logo.png
 │   └── logo@2x.png
 └── www/
-    └── ha-lightfx-card.js  # Bundled Lovelace custom card
+    └── ha-lightfx-card.js  # Bundled, browser-loadable Lovelace custom card
+
+frontend/
+└── ha-lightfx-card.js      # Source for the card/editor before bundling
+```
+
+The committed `custom_components/ha_lightfx/www/ha-lightfx-card.js` file is the browser-loadable bundle used by Home Assistant. Edit `frontend/ha-lightfx-card.js`, then rebuild the bundle:
+
+```bash
+npm install
+npm run build:card
 ```
 
 Useful validation commands:
@@ -565,6 +576,7 @@ python3 -m json.tool hacs.json >/dev/null
 python3 -m json.tool custom_components/ha_lightfx/strings.json >/dev/null
 python3 -m json.tool custom_components/ha_lightfx/translations/en.json >/dev/null
 ruby -e 'require "yaml"; YAML.load_file("custom_components/ha_lightfx/services.yaml")'
+node --check frontend/ha-lightfx-card.js
 node --check custom_components/ha_lightfx/www/ha-lightfx-card.js
 ```
 
