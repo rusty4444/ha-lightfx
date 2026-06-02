@@ -10,7 +10,7 @@
   <img src="images/logo.jpg" alt="HA LightFX logo" width="500">
 </p>
 
-**Version 1.0.3** — virtual WLED-style light effects for ordinary Home Assistant lights.
+**Version 1.0.4** — virtual WLED-style light effects for ordinary Home Assistant lights.
 
 HA LightFX lets you build virtual room layouts, place Home Assistant `light` entities on a 0-100 grid, and run animated effects across them. It works with Zigbee, Z-Wave, Wi-Fi, Matter, Hue, ESPHome, or any other light that Home Assistant can control. No LED strip controller or WLED hardware is required.
 
@@ -121,7 +121,7 @@ Manual dashboard resource registration is required before Home Assistant can sho
 2. Click **Add Resource**.
 3. URL:
    ```text
-   /ha_lightfx/ha-lightfx-card.js?v=1.0.3
+   /ha_lightfx/ha-lightfx-card.js?v=1.0.4
    ```
 4. Resource type: **JavaScript Module**.
 5. Save, then hard refresh the browser if the card does not appear.
@@ -136,7 +136,7 @@ Manual dashboard resource registration is required before Home Assistant can sho
 6. Pick a Home Assistant light entity.
 7. Set its `x`, `y`, optional `z`, and `zone`.
 8. Repeat for each light in the room.
-9. Confirm the dashboard resource `/ha_lightfx/ha-lightfx-card.js?v=1.0.3` is registered as a JavaScript Module.
+9. Confirm the dashboard resource `/ha_lightfx/ha-lightfx-card.js?v=1.0.4` is registered as a JavaScript Module.
 10. Add the dashboard card:
    ```yaml
    type: custom:ha-lightfx-card
@@ -583,6 +583,13 @@ ruby -e 'require "yaml"; YAML.load_file("custom_components/ha_lightfx/services.y
 node --check frontend/ha-lightfx-card.js
 node --check custom_components/ha_lightfx/www/ha-lightfx-card.js
 ```
+
+## Release Notes: 1.0.4
+
+Version 1.0.4 fixes two bugs found during live install testing:
+
+- Fixed `Store` import in `__init__.py` — `hass.helpers.storage.Store()` is not valid in modern HA. Uses `Store(hass, ...)` import pattern.
+- Fixed `OptionsFlow.__init__` config entry property collision — `config_entry` is a read-only base-class property.
 
 ## Release Notes: 1.0.3
 
