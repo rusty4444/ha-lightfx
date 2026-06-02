@@ -534,7 +534,7 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
 
 def _LAYOUT_SCHEMA(default_name=""):
     return vol.Schema({
-        vol.Required(CONF_NAME, default=default_name): cv.string,
+        vol.Required(CONF_NAME, default=default_name): vol.All(cv.string, vol.Length(min=1)),
     })
 
 
