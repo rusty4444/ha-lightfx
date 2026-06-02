@@ -10,7 +10,7 @@
   <img src="images/logo.jpg" alt="HA LightFX logo" width="500">
 </p>
 
-**Version 1.0.4** — virtual WLED-style light effects for ordinary Home Assistant lights.
+**Version 1.0.5** — virtual WLED-style light effects for ordinary Home Assistant lights.
 
 HA LightFX lets you build virtual room layouts, place Home Assistant `light` entities on a 0-100 grid, and run animated effects across them. It works with Zigbee, Z-Wave, Wi-Fi, Matter, Hue, ESPHome, or any other light that Home Assistant can control. No LED strip controller or WLED hardware is required.
 
@@ -115,16 +115,15 @@ The Lovelace card is bundled inside the integration and served at:
 /ha_lightfx/ha-lightfx-card.js
 ```
 
-Manual dashboard resource registration is required before Home Assistant can show **Custom: HA LightFX** in the card picker or load the card visual editor. Add it as:
+The Lovelace card is auto-registered as a dashboard resource when the integration starts. A hard browser refresh (Ctrl+Shift+R / Cmd+Shift+R) may be needed to pick up the card on first install.
 
-1. Open **Settings → Dashboards → Resources**.
-2. Click **Add Resource**.
-3. URL:
-   ```text
-   /ha_lightfx/ha-lightfx-card.js?v=1.0.4
-   ```
-4. Resource type: **JavaScript Module**.
-5. Save, then hard refresh the browser if the card does not appear.
+If the card does not appear, verify the resource exists under **Settings → Dashboards → Resources**:
+
+```text
+/ha_lightfx/ha-lightfx-card.js
+```
+
+with type **JavaScript Module**. Add it manually if needed.
 
 ## Quick Start
 
@@ -136,12 +135,11 @@ Manual dashboard resource registration is required before Home Assistant can sho
 6. Pick a Home Assistant light entity.
 7. Set its `x`, `y`, optional `z`, and `zone`.
 8. Repeat for each light in the room.
-9. Confirm the dashboard resource `/ha_lightfx/ha-lightfx-card.js?v=1.0.4` is registered as a JavaScript Module.
-10. Add the dashboard card:
+9. Add the dashboard card:
    ```yaml
    type: custom:ha-lightfx-card
    ```
-11. Select the layout, choose an effect, and press **Play**.
+10. Select the layout, choose an effect, and press **Play**.
 
 ## Lovelace Card
 
@@ -583,6 +581,13 @@ ruby -e 'require "yaml"; YAML.load_file("custom_components/ha_lightfx/services.y
 node --check frontend/ha-lightfx-card.js
 node --check custom_components/ha_lightfx/www/ha-lightfx-card.js
 ```
+
+## Release Notes: 1.0.5
+
+Version 1.0.5 fixes config flow errors and auto-registers the Lovelace card:
+
+- Auto-registers the Lovelace dashboard card resource on integration setup — no manual resource URL entry needed.
+- Fixes "extra keys not allowed @ _action" when adding or editing lights in the config flow editor.
 
 ## Release Notes: 1.0.4
 
