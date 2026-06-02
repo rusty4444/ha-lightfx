@@ -146,18 +146,48 @@ The built-in card type is:
 type: custom:ha-lightfx-card
 ```
 
-The card auto-discovers layouts through the integration WebSocket API. No card-level YAML options are required.
+The card auto-discovers layouts through the integration WebSocket API. No card-level YAML options are required for basic use.
 
 The card provides:
 
+- Lovelace visual card editor via the dashboard UI.
 - Layout selector buttons.
+- Optional default layout selection.
 - 2D layout visualization.
 - Zone-colored light dots.
-- Drag-and-drop light repositioning.
+- Optional drag-and-drop light repositioning.
 - Effect selector.
 - Primary and secondary color pickers.
 - Brightness and speed sliders.
+- Optional refresh button.
 - Play/Stop controls.
+
+### Lovelace Visual Editor Options
+
+Open the dashboard editor, add **Custom: HA LightFX**, then configure the card from the visual editor. YAML editing is optional.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `title` | string | `HA LightFX` | Card header title. |
+| `default_layout` | string | empty | Layout ID to auto-select, for example `living_room`. Leave empty to select the first available layout. |
+| `show_layout_selector` | boolean | `true` | Show buttons for switching layouts. Disable this for a single-layout dashboard card. |
+| `show_zone_legend` | boolean | `true` | Show the zone color legend under the grid. |
+| `allow_drag` | boolean | `true` | Allow dragging light dots to update x/y positions. |
+| `show_refresh_button` | boolean | `true` | Show the header refresh button for reloading layouts. |
+| `confirm_stop` | boolean | `true` | Ask for confirmation before stopping and restoring lights. |
+
+Example YAML equivalent:
+
+```yaml
+type: custom:ha-lightfx-card
+title: Living Room FX
+default_layout: living_room
+show_layout_selector: false
+show_zone_legend: true
+allow_drag: true
+show_refresh_button: true
+confirm_stop: true
+```
 
 ## Visual Editor
 
