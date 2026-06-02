@@ -152,16 +152,22 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         await store.async_save(engine.to_storage())
 
     # ── create_layout ──────────────────────────────────────────────
-    async def handle_create_layout(call: ServiceCall) -> None:
+    async def handle_create_layout(call: ServiceCall) -> dict | None:
         name = call.data[CONF_NAME]
         icon = call.data.get("icon")
         lid = engine.create_layout(name, icon)
         await _save(hass)
+        if getattr(call, "return_response", False):
+            return {"layout_id": lid}
+        return None
 
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_LAYOUT, handle_create_layout,
-        schema=vol.Schema({vol.Required(CONF_NAME): cv.string,
-                           vol.Optional("icon"): cv.string}),
+        schema=vol.Schema({
+            vol.Required(CONF_NAME): vol.All(cv.string, vol.Length(min=1)),
+            vol.Optional("icon"): cv.string,
+        }),
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     # ── remove_layout ──────────────────────────────────────────────
@@ -419,7 +425,8 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             effect = call.data.get("effect", DEFAULT_EFFECT)
             try:
                 return engine.compute_frame_one(lid, effect, call.data.get("params"))
-            except ValueError:
+            except ValueError as err:
+                _LOGGER.warning("Preview effect failed: %s", err)
                 return None
         return None
     hass.services.async_register(
