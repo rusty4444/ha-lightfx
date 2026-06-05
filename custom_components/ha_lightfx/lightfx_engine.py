@@ -294,7 +294,7 @@ class LightFXEngine:
 
                 if previous_state == "off":
                     self._hass.async_create_task(
-                        self._call_service("light", "turn_off", entity_id=entity_id)
+                        self._call_service("light", "turn_off", {"entity_id": entity_id})
                     )
                     continue
 
@@ -306,9 +306,9 @@ class LightFXEngine:
                 elif "color_temp" in attrs:
                     data["color_temp"] = attrs["color_temp"]
                 if data:
+                    service_data = {"entity_id": entity_id, **data}
                     self._hass.async_create_task(
-                        self._call_service("light", "turn_on",
-                                           entity_id=entity_id, **data)
+                        self._call_service("light", "turn_on", service_data)
                     )
         if restore:
             ls.previous_states = {}
@@ -393,12 +393,9 @@ class LightFXEngine:
                 states = self._compute_frame(current_effect_for_frame, ls, tick)
                 calls = []
                 for entity_id, sv in states.items():
+                    service_data = {"entity_id": entity_id, **sv}
                     calls.append(
-                        self._call_service(
-                            "light", "turn_on",
-                            entity_id=entity_id,
-                            **sv
-                        )
+                        self._call_service("light", "turn_on", service_data)
                     )
                 if calls:
                     await asyncio.gather(*calls)
