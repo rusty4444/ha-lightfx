@@ -140,13 +140,19 @@ async def _register_frontend(hass: HomeAssistant) -> None:
     try:
         from homeassistant.components.http import StaticPathConfig
     except ImportError:
-        hass.http.register_static_path(
-            FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False
-        )
+        try:
+            hass.http.register_static_path(
+                FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False
+            )
+        except RuntimeError as err:
+            _LOGGER.debug("Frontend path already registered: %s", err)
     else:
-        await hass.http.async_register_static_paths([
-            StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False),
-        ])
+        try:
+            await hass.http.async_register_static_paths([
+                StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False),
+            ])
+        except RuntimeError as err:
+            _LOGGER.debug("Frontend path already registered: %s", err)
 
 
 async def _register_lovelace_resource(hass: HomeAssistant) -> None:
@@ -521,7 +527,6 @@ async def _register_websocket_api(hass, engine):
             }
         connection.send_result(msg["id"], {"layouts": layouts})
 
-
     @websocket_api.async_response
     async def ws_preview(hass, connection, msg):
         """Compute a single preview frame for an effect."""
@@ -533,52 +538,34 @@ async def _register_websocket_api(hass, engine):
         except ValueError as e:
             connection.send_error(msg["id"], "not_found", str(e))
 
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/preview",
-        ws_preview,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {
-                vol.Required("type"): "ha_lightfx/preview",
-                vol.Required("layout_id"): cv.string,
-                vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
-                vol.Optional("params"): dict,
-            }
-        ),
-    )
-
     @websocket_api.async_response
     async def ws_profiles(hass, connection, msg):
         """Return all profiles."""
         connection.send_result(msg["id"], {"profiles": engine.list_profiles()})
-
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/profiles",
-        ws_profiles,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {"type": "ha_lightfx/profiles"}
-        ),
-    )
 
     @websocket_api.async_response
     async def ws_groups(hass, connection, msg):
         """Return all layout groups."""
         connection.send_result(msg["id"], {"groups": engine.list_groups()})
 
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/groups",
-        ws_groups,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {"type": "ha_lightfx/groups"}
-        ),
-    )
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/layouts",
-        ws_layouts,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {"type": "ha_lightfx/layouts"}
-        ),
-    )
+    commands = [
+        ("ha_lightfx/preview", ws_preview, {
+            vol.Required("type"): "ha_lightfx/preview",
+            vol.Required("layout_id"): cv.string,
+            vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
+            vol.Optional("params"): dict,
+        }),
+        ("ha_lightfx/profiles", ws_profiles, {"type": "ha_lightfx/profiles"}),
+        ("ha_lightfx/groups", ws_groups, {"type": "ha_lightfx/groups"}),
+        ("ha_lightfx/layouts", ws_layouts, {"type": "ha_lightfx/layouts"}),
+    ]
+    for command_type, handler, schema_dict in commands:
+        try:
+            websocket_api.async_register_command(
+                hass,
+                command_type,
+                handler,
+                websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(schema_dict),
+            )
+        except ValueError as err:
+            _LOGGER.debug("WebSocket command %s already registered: %s", command_type, err)
