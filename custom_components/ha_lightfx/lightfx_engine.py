@@ -72,6 +72,19 @@ class LightFXEngine:
         self._profiles: dict[str, dict] = {}
         self._groups: dict[str, list[str]] = {}
 
+    async def _call_light(self, service: str, entity_id: str,
+                          **service_data: Any) -> None:
+        """Call a light service using service_data so entity_id is accepted
+        across Home Assistant versions that expect targets/data payload
+        instead of entity_id as a keyword argument.
+        """
+        await self._hass.services.async_call(
+            "light",
+            service,
+            {"entity_id": entity_id, **service_data},
+            blocking=True,
+        )
+
     # ── Layout management ──────────────────────────────────────────────
 
     def create_layout(self, name: str, icon: str | None = None) -> str:
