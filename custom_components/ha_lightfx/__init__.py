@@ -156,29 +156,40 @@ async def _register_frontend(hass: HomeAssistant) -> None:
 
 
 async def _register_lovelace_resource(hass: HomeAssistant) -> None:
-    """Auto-register the card as a Lovelace dashboard resource if not already present."""
-    storage_path = hass.config.path(".storage/lovelace.resources")
+    """Auto-register the card as a Lovelace dashboard resource if not already present.
+
+    Uses the Lovelace resources collection API instead of direct filesystem access.
+    """
     url = f"/{DOMAIN}/ha-lightfx-card.js"
 
-    # Load existing resources, or start fresh
     try:
-        if storage_path.exists():
-            data = json.loads(storage_path.read_text("utf-8"))
-        else:
-            data = {"data": {"resources": []}}
-    except Exception:
-        _LOGGER.debug("HA LightFX: could not read lovelace resource storage, skipping auto-registration")
-        return
+        # Get the Lovelace resources collection
+        # The collection is stored in hass.data["lovelace"]["resources"] after Lovelace setup
+        if "lovelace" not in hass.data:
+            _LOGGER.debug("HA LightFX: Lovelace not yet loaded, skipping auto-registration")
+            return
 
-    resources = data.get("data", {}).get("resources", [])
-    if any(r.get("url") == url for r in resources):
-        return  # already registered
+        resources_collection = hass.data["lovelace"].get("resources")
+        if resources_collection is None:
+            _LOGGER.debug("HA LightFX: Lovelace resources collection not found, skipping auto-registration")
+            return
 
-    resources.append({"type": "module", "url": url})
-    data["data"]["resources"] = resources
-    storage_path.parent.mkdir(parents=True, exist_ok=True)
-    storage_path.write_text(json.dumps(data, indent=2), "utf-8")
-    _LOGGER.info("HA LightFX: auto-registered Lovelace resource %s", url)
+        # Check if resource already exists
+        existing_items = resources_collection.async_items()
+        for item in existing_items:
+            if item.get("url") == url:
+                return  # already registered
+
+        # Create the resource using the collection's async_create_item
+        # The resource type from websocket is "module" (maps to "res_type" in schema)
+        await resources_collection.async_create_item({
+            "res_type": "module",
+            "url": url,
+        })
+        _LOGGER.info("HA LightFX: auto-registered Lovelace resource %s", url)
+
+    except Exception as err:
+        _LOGGER.debug("HA LightFX: could not auto-register Lovelace resource: %s", err)
 
 
 def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:

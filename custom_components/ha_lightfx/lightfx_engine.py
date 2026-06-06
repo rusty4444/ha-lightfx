@@ -164,7 +164,7 @@ class LightFXEngine:
                         )
                     )
                 self._layouts[lid] = ls
-            except (KeyError, TypeError) as exc:
+            except (KeyError, TypeError, AttributeError) as exc:
                 _LOGGER.warning("Skipping corrupted layout '%s' from storage: %s", lid, exc)
 
 
