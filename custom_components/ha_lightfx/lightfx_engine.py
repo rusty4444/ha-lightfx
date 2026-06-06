@@ -72,6 +72,19 @@ class LightFXEngine:
         self._profiles: dict[str, dict] = {}
         self._groups: dict[str, list[str]] = {}
 
+    async def _call_light(self, service: str, entity_id: str,
+                          **service_data: Any) -> None:
+        """Call a light service using service_data so entity_id is accepted
+        across Home Assistant versions that expect targets/data payload
+        instead of entity_id as a keyword argument.
+        """
+        await self._hass.services.async_call(
+            "light",
+            service,
+            {"entity_id": entity_id, **service_data},
+            blocking=True,
+        )
+
     # ── Layout management ──────────────────────────────────────────────
 
     def create_layout(self, name: str, icon: str | None = None) -> str:
@@ -154,9 +167,15 @@ class LightFXEngine:
                 icon = info.get("icon")
                 ls = LayoutState(name=name, icon=icon)
                 for lp in info.get("lights", []):
+                    entity_id = lp.get("entity_id", "").strip()
+                    if not entity_id:
+                        _LOGGER.warning(
+                            "Skipping light with empty entity_id in layout '%s'", lid
+                        )
+                        continue
                     ls.lights.append(
                         LightPoint(
-                            lp.get("entity_id", ""),
+                            entity_id,
                             lp.get("x", 0),
                             lp.get("y", 0),
                             lp.get("z", 0),
@@ -164,7 +183,7 @@ class LightFXEngine:
                         )
                     )
                 self._layouts[lid] = ls
-            except (KeyError, TypeError) as exc:
+            except (KeyError, TypeError, AttributeError) as exc:
                 _LOGGER.warning("Skipping corrupted layout '%s' from storage: %s", lid, exc)
 
 
@@ -294,7 +313,7 @@ class LightFXEngine:
 
                 if previous_state == "off":
                     self._hass.async_create_task(
-                        self._call_service("light", "turn_off", entity_id=entity_id)
+                        self._call_service("light", "turn_off", {"entity_id": entity_id})
                     )
                     continue
 
@@ -306,9 +325,9 @@ class LightFXEngine:
                 elif "color_temp" in attrs:
                     data["color_temp"] = attrs["color_temp"]
                 if data:
+                    service_data = {"entity_id": entity_id, **data}
                     self._hass.async_create_task(
-                        self._call_service("light", "turn_on",
-                                           entity_id=entity_id, **data)
+                        self._call_service("light", "turn_on", service_data)
                     )
         if restore:
             ls.previous_states = {}
@@ -393,12 +412,9 @@ class LightFXEngine:
                 states = self._compute_frame(current_effect_for_frame, ls, tick)
                 calls = []
                 for entity_id, sv in states.items():
+                    service_data = {"entity_id": entity_id, **sv}
                     calls.append(
-                        self._call_service(
-                            "light", "turn_on",
-                            entity_id=entity_id,
-                            **sv
-                        )
+                        self._call_service("light", "turn_on", service_data)
                     )
                 if calls:
                     await asyncio.gather(*calls)

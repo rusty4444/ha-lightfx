@@ -88,6 +88,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if stored:
         engine.from_storage(stored)
 
+    # Clean up any lights with empty entity_ids that may have been restored
+    for ls in engine._layouts.values():
+        before = len(ls.lights)
+        ls.lights = [lp for lp in ls.lights if lp.entity_id and lp.entity_id.strip()]
+        if len(ls.lights) < before:
+            _LOGGER.info(
+                "Removed %d light(s) with empty entity_id from layout '%s'",
+                before - len(ls.lights), ls.layout_id
+            )
+    # Save cleaned data back to storage
+    await store.async_save(engine.to_storage())
+
     hass.data[DOMAIN] = {"engine": engine, "store": store}
 
     # Register services
@@ -140,39 +152,56 @@ async def _register_frontend(hass: HomeAssistant) -> None:
     try:
         from homeassistant.components.http import StaticPathConfig
     except ImportError:
-        hass.http.register_static_path(
-            FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False
-        )
+        try:
+            hass.http.register_static_path(
+                FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False
+            )
+        except RuntimeError as err:
+            _LOGGER.debug("Frontend path already registered: %s", err)
     else:
-        await hass.http.async_register_static_paths([
-            StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False),
-        ])
+        try:
+            await hass.http.async_register_static_paths([
+                StaticPathConfig(FRONTEND_URL, str(FRONTEND_PATH), cache_headers=False),
+            ])
+        except RuntimeError as err:
+            _LOGGER.debug("Frontend path already registered: %s", err)
 
 
 async def _register_lovelace_resource(hass: HomeAssistant) -> None:
-    """Auto-register the card as a Lovelace dashboard resource if not already present."""
-    storage_path = hass.config.path(".storage/lovelace.resources")
+    """Auto-register the card as a Lovelace dashboard resource if not already present.
+
+    Uses the Lovelace resources collection API instead of direct filesystem access.
+    """
     url = f"/{DOMAIN}/ha-lightfx-card.js"
 
-    # Load existing resources, or start fresh
     try:
-        if storage_path.exists():
-            data = json.loads(storage_path.read_text("utf-8"))
-        else:
-            data = {"data": {"resources": []}}
-    except Exception:
-        _LOGGER.debug("HA LightFX: could not read lovelace resource storage, skipping auto-registration")
-        return
+        # Get the Lovelace resources collection
+        # The collection is stored in hass.data["lovelace"]["resources"] after Lovelace setup
+        if "lovelace" not in hass.data:
+            _LOGGER.debug("HA LightFX: Lovelace not yet loaded, skipping auto-registration")
+            return
 
-    resources = data.get("data", {}).get("resources", [])
-    if any(r.get("url") == url for r in resources):
-        return  # already registered
+        resources_collection = hass.data["lovelace"].get("resources")
+        if resources_collection is None:
+            _LOGGER.debug("HA LightFX: Lovelace resources collection not found, skipping auto-registration")
+            return
 
-    resources.append({"type": "module", "url": url})
-    data["data"]["resources"] = resources
-    storage_path.parent.mkdir(parents=True, exist_ok=True)
-    storage_path.write_text(json.dumps(data, indent=2), "utf-8")
-    _LOGGER.info("HA LightFX: auto-registered Lovelace resource %s", url)
+        # Check if resource already exists
+        existing_items = resources_collection.async_items()
+        for item in existing_items:
+            if item.get("url") == url:
+                return  # already registered
+
+        # Create the resource using the collection's async_create_item
+        # The resource type from websocket is "module" (maps to "res_type" in schema)
+        await resources_collection.async_create_item({
+            "res_type": "module",
+            "url": url,
+        })
+        _LOGGER.info("HA LightFX: auto-registered Lovelace resource %s", url)
+
+    except Exception as err:
+        _LOGGER.debug("HA LightFX: could not auto-register Lovelace resource: %s", err)
 
 
 def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
@@ -227,9 +256,14 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         ls = engine.get_layout(lid)
         if not _check_layout(ls, lid):
             return
+        entity_id = call.data["entity_id"]
+        # Validate the light entity exists in HA
+        if not hass.states.get(entity_id):
+            _LOGGER.warning("Light entity '%s' not found in Home Assistant", entity_id)
+            return
         engine.add_light(
             lid,
-            call.data["entity_id"],
+            entity_id,
             call.data["x"],
             call.data["y"],
             z=call.data.get("z", 0),
@@ -521,7 +555,6 @@ async def _register_websocket_api(hass, engine):
             }
         connection.send_result(msg["id"], {"layouts": layouts})
 
-
     @websocket_api.async_response
     async def ws_preview(hass, connection, msg):
         """Compute a single preview frame for an effect."""
@@ -533,52 +566,34 @@ async def _register_websocket_api(hass, engine):
         except ValueError as e:
             connection.send_error(msg["id"], "not_found", str(e))
 
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/preview",
-        ws_preview,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {
-                vol.Required("type"): "ha_lightfx/preview",
-                vol.Required("layout_id"): cv.string,
-                vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
-                vol.Optional("params"): dict,
-            }
-        ),
-    )
-
     @websocket_api.async_response
     async def ws_profiles(hass, connection, msg):
         """Return all profiles."""
         connection.send_result(msg["id"], {"profiles": engine.list_profiles()})
-
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/profiles",
-        ws_profiles,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {"type": "ha_lightfx/profiles"}
-        ),
-    )
 
     @websocket_api.async_response
     async def ws_groups(hass, connection, msg):
         """Return all layout groups."""
         connection.send_result(msg["id"], {"groups": engine.list_groups()})
 
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/groups",
-        ws_groups,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {"type": "ha_lightfx/groups"}
-        ),
-    )
-    websocket_api.async_register_command(
-        hass,
-        "ha_lightfx/layouts",
-        ws_layouts,
-        websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-            {"type": "ha_lightfx/layouts"}
-        ),
-    )
+    commands = [
+        ("ha_lightfx/preview", ws_preview, {
+            vol.Required("type"): "ha_lightfx/preview",
+            vol.Required("layout_id"): cv.string,
+            vol.Optional("effect", default="rainbow"): vol.In(EFFECTS),
+            vol.Optional("params"): dict,
+        }),
+        ("ha_lightfx/profiles", ws_profiles, {"type": "ha_lightfx/profiles"}),
+        ("ha_lightfx/groups", ws_groups, {"type": "ha_lightfx/groups"}),
+        ("ha_lightfx/layouts", ws_layouts, {"type": "ha_lightfx/layouts"}),
+    ]
+    for command_type, handler, schema_dict in commands:
+        try:
+            websocket_api.async_register_command(
+                hass,
+                command_type,
+                handler,
+                websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(schema_dict),
+            )
+        except ValueError as err:
+            _LOGGER.debug("WebSocket command %s already registered: %s", command_type, err)
