@@ -10,7 +10,7 @@
   <img src="images/logo.jpg" alt="HA LightFX logo" width="500">
 </p>
 
-**Version 1.1.1** — virtual WLED-style light effects for ordinary Home Assistant lights.
+**Version 1.1.2** — virtual WLED-style light effects for ordinary Home Assistant lights.
 
 HA LightFX lets you build virtual room layouts, place Home Assistant `light` entities on a 0-100 grid, and run animated effects across them. It works with Zigbee, Z-Wave, Wi-Fi, Matter, Hue, ESPHome, or any other light that Home Assistant can control. No LED strip controller or WLED hardware is required.
 

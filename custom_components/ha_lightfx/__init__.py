@@ -88,6 +88,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if stored:
         engine.from_storage(stored)
 
+    # Clean up any lights with empty entity_ids that may have been restored
+    for ls in engine._layouts.values():
+        before = len(ls.lights)
+        ls.lights = [lp for lp in ls.lights if lp.entity_id and lp.entity_id.strip()]
+        if len(ls.lights) < before:
+            _LOGGER.info(
+                "Removed %d light(s) with empty entity_id from layout '%s'",
+                before - len(ls.lights), ls.layout_id
+            )
+    # Save cleaned data back to storage
+    await store.async_save(engine.to_storage())
+
     hass.data[DOMAIN] = {"engine": engine, "store": store}
 
     # Register services
@@ -244,9 +256,14 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
         ls = engine.get_layout(lid)
         if not _check_layout(ls, lid):
             return
+        entity_id = call.data["entity_id"]
+        # Validate the light entity exists in HA
+        if not hass.states.get(entity_id):
+            _LOGGER.warning("Light entity '%s' not found in Home Assistant", entity_id)
+            return
         engine.add_light(
             lid,
-            call.data["entity_id"],
+            entity_id,
             call.data["x"],
             call.data["y"],
             z=call.data.get("z", 0),

@@ -154,9 +154,15 @@ class LightFXEngine:
                 icon = info.get("icon")
                 ls = LayoutState(name=name, icon=icon)
                 for lp in info.get("lights", []):
+                    entity_id = lp.get("entity_id", "").strip()
+                    if not entity_id:
+                        _LOGGER.warning(
+                            "Skipping light with empty entity_id in layout '%s'", lid
+                        )
+                        continue
                     ls.lights.append(
                         LightPoint(
-                            lp.get("entity_id", ""),
+                            entity_id,
                             lp.get("x", 0),
                             lp.get("y", 0),
                             lp.get("z", 0),
