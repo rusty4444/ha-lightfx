@@ -317,13 +317,28 @@ class LightFXEngine:
                     )
                     continue
 
+                # Restore all supported light attributes from snapshot.
+                # HA light.turn_on accepts: brightness, rgb_color, hs_color, xy_color,
+                # color_temp, color_temp_kelvin, white_value, effect, flash, transition,
+                # color_mode (read-only), supported_color_modes (read-only).
+                # We pass through everything the light entity had before the effect started.
                 data = {}
-                if "brightness" in attrs:
-                    data["brightness"] = attrs["brightness"]
-                if "rgb_color" in attrs:
-                    data["rgb_color"] = attrs["rgb_color"]
-                elif "color_temp" in attrs:
-                    data["color_temp"] = attrs["color_temp"]
+                for key in (
+                    "brightness",
+                    "rgb_color",
+                    "hs_color",
+                    "xy_color",
+                    "color_temp",
+                    "color_temp_kelvin",
+                    "white_value",
+                    "effect",
+                    "flash",
+                    "transition",
+                    "profile",
+                ):
+                    if key in attrs:
+                        data[key] = attrs[key]
+
                 if data:
                     service_data = {"entity_id": entity_id, **data}
                     self._hass.async_create_task(
