@@ -4,24 +4,27 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState, SOURCE_USER
 from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.ha_lightfx.const import DOMAIN
 from custom_components.ha_lightfx.config_flow import LightFXConfigFlow, LightFXOptionsFlow
 
 
 async def _create_mock_config_entry(hass: HomeAssistant) -> ConfigEntry:
     """Create a mock config entry for testing."""
-    entry = ConfigEntry(
+    entry = MockConfigEntry(
         version=1,
         minor_version=1,
         domain=DOMAIN,
         title="HA LightFX",
         data={},
+        options={},
         source="user",
         unique_id="ha_lightfx",
         entry_id="test_entry_id",
         state=ConfigEntryState.NOT_LOADED,
     )
-    await hass.config_entries.async_add(entry)
+    entry.add_to_hass(hass)
     return entry
 
 
