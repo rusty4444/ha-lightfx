@@ -314,6 +314,9 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
                     ["ceiling", "wall", "accent", "floor", "other"]
                 ),
             }),
+            description_placeholders={
+                "hint": f"Edit the position and zone for {entity_id}."
+            },
         )
 
     async def async_step_edit_light(self, user_input=None):

@@ -51,6 +51,35 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = []
 FRONTEND_URL = "/ha_lightfx/ha-lightfx-card.js"
 FRONTEND_PATH = Path(__file__).parent / "www" / "ha-lightfx-card.js"
+MANIFEST_PATH = Path(__file__).parent / "manifest.json"
+
+
+def _frontend_resource_url() -> str:
+    """Return the Lovelace resource URL with a version query for cache busting."""
+    try:
+        version = json.loads(MANIFEST_PATH.read_text(encoding="utf-8")).get("version")
+    except (OSError, json.JSONDecodeError):
+        version = None
+    return f"{FRONTEND_URL}?v={version}" if version else FRONTEND_URL
+
+
+def _same_frontend_resource(url: str | None) -> bool:
+    """Return true when a Lovelace resource points at this card, ignoring query params."""
+    if not url:
+        return False
+    return url.split("?", 1)[0] == FRONTEND_URL
+
+
+def _lovelace_resources_collection(hass: HomeAssistant):
+    """Return the Lovelace resources collection across HA data shapes."""
+    lovelace_data = hass.data.get("lovelace")
+    if lovelace_data is None:
+        return None
+    if isinstance(lovelace_data, dict):
+        return lovelace_data.get("resources")
+    return getattr(lovelace_data, "resources", None)
+
+
 SERVICE_NAMES = (
     SERVICE_CREATE_LAYOUT,
     SERVICE_REMOVE_LAYOUT,
@@ -168,32 +197,36 @@ async def _register_frontend(hass: HomeAssistant) -> None:
 
 
 async def _register_lovelace_resource(hass: HomeAssistant) -> None:
-    """Auto-register the card as a Lovelace dashboard resource if not already present.
-
-    Uses the Lovelace resources collection API instead of direct filesystem access.
-    """
-    url = f"/{DOMAIN}/ha-lightfx-card.js"
+    """Auto-register the card as a Lovelace dashboard resource if possible."""
+    url = _frontend_resource_url()
 
     try:
-        # Get the Lovelace resources collection
-        # The collection is stored in hass.data["lovelace"]["resources"] after Lovelace setup
-        if "lovelace" not in hass.data:
-            _LOGGER.debug("HA LightFX: Lovelace not yet loaded, skipping auto-registration")
-            return
-
-        resources_collection = hass.data["lovelace"].get("resources")
+        resources_collection = _lovelace_resources_collection(hass)
         if resources_collection is None:
-            _LOGGER.debug("HA LightFX: Lovelace resources collection not found, skipping auto-registration")
+            _LOGGER.debug(
+                "HA LightFX: Lovelace resources collection not found, skipping auto-registration"
+            )
             return
 
-        # Check if resource already exists
         existing_items = resources_collection.async_items()
         for item in existing_items:
-            if item.get("url") == url:
-                return  # already registered
+            item_url = item.get("url")
+            if item_url == url:
+                return
+            if _same_frontend_resource(item_url):
+                item_id = item.get("id")
+                if item_id and hasattr(resources_collection, "async_update_item"):
+                    await resources_collection.async_update_item(
+                        item_id, {"res_type": "module", "url": url}
+                    )
+                    _LOGGER.info("HA LightFX: updated Lovelace resource %s", url)
+                else:
+                    _LOGGER.debug(
+                        "HA LightFX: frontend resource exists but cannot be updated automatically: %s",
+                        item_url,
+                    )
+                return
 
-        # Create the resource using the collection's async_create_item
-        # The resource type from websocket is "module" (maps to "res_type" in schema)
         await resources_collection.async_create_item({
             "res_type": "module",
             "url": url,
@@ -553,6 +586,18 @@ async def _register_websocket_api(hass, engine):
                     for lp in (ls.lights if ls else [])
                 ],
             }
+        _LOGGER.debug(
+            "HA LightFX layouts WS response: %d layouts, %d lights",
+            len(layouts),
+            sum(len(layout.get("lights", [])) for layout in layouts.values()),
+        )
+        for layout_id, layout in layouts.items():
+            _LOGGER.debug(
+                "HA LightFX layout %s: light_count=%s, lights=%d",
+                layout_id,
+                layout.get("light_count"),
+                len(layout.get("lights", [])),
+            )
         connection.send_result(msg["id"], {"layouts": layouts})
 
     @websocket_api.async_response
