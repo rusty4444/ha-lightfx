@@ -317,27 +317,31 @@ class LightFXEngine:
                     )
                     continue
 
-                # Restore all supported light attributes from snapshot.
-                # HA light.turn_on accepts: brightness, rgb_color, hs_color, xy_color,
-                # color_temp, color_temp_kelvin, white_value, effect, flash, transition,
-                # color_mode (read-only), supported_color_modes (read-only).
-                # We pass through everything the light entity had before the effect started.
+                # Restore service-writable light attributes from the snapshot.
+                # Different integrations expose their original colour in different
+                # writable fields (Hue: hs/xy, LiFX/Tuya/RGBW: rgbw/rgbww/white).
+                # Do not pass read-only attributes such as color_mode or
+                # supported_color_modes back to light.turn_on.
                 data = {}
                 for key in (
                     "brightness",
                     "rgb_color",
+                    "rgbw_color",
+                    "rgbww_color",
                     "hs_color",
                     "xy_color",
                     "color_temp",
                     "color_temp_kelvin",
                     "white_value",
+                    "white",
                     "effect",
                     "flash",
                     "transition",
                     "profile",
                 ):
-                    if key in attrs:
-                        data[key] = attrs[key]
+                    value = attrs.get(key)
+                    if value is not None:
+                        data[key] = value
 
                 if data:
                     service_data = {"entity_id": entity_id, **data}

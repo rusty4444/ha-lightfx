@@ -233,6 +233,51 @@ def test_from_storage_corrupted_layout_skipped() -> None:
 
 
 @pytest.mark.unit
+def test_stop_effect_restores_rgbw_rgbww_and_white_attributes() -> None:
+    """Restore colour attributes used by RGBW/RGBWW/white-capable lights."""
+    hass = MagicMock()
+    call_service = MagicMock()
+    engine = LightFXEngine(hass, call_service)
+    layout_id = engine.create_layout("Kitchen")
+    engine.add_light(layout_id, "light.rgbw", 10, 20)
+    layout = engine.get_layout(layout_id)
+    assert layout is not None
+    layout.running = True
+    layout.current_effect = "rainbow"
+    layout.previous_states = {
+        "light.rgbw": {
+            "state": "on",
+            "attributes": {
+                "brightness": 123,
+                "rgbw_color": (1, 2, 3, 4),
+                "rgbww_color": (5, 6, 7, 8, 9),
+                "white": 42,
+                "color_mode": "rgbw",
+                "supported_color_modes": ["rgbw"],
+            },
+        }
+    }
+
+    engine.stop_effect(layout_id, restore=True)
+
+    hass.async_create_task.assert_called_once()
+    coro = hass.async_create_task.call_args.args[0]
+    coro.close()
+    call_service.assert_called_once_with(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.rgbw",
+            "brightness": 123,
+            "rgbw_color": (1, 2, 3, 4),
+            "rgbww_color": (5, 6, 7, 8, 9),
+            "white": 42,
+        },
+    )
+    assert layout.previous_states == {}
+
+
+@pytest.mark.unit
 def test_compute_frame_rainbow() -> None:
     """Test rainbow effect frame computation."""
     hass = MagicMock()

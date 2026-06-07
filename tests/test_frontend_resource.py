@@ -108,3 +108,18 @@ async def test_register_lovelace_resource_skips_exact_match() -> None:
 
     collection.async_update_item.assert_not_awaited()
     collection.async_create_item.assert_not_awaited()
+
+
+@pytest.mark.unit
+def test_frontend_resource_url_uses_cached_manifest_version(monkeypatch) -> None:
+    """Resource URL generation must not read manifest.json in the event loop."""
+    import custom_components.ha_lightfx as ha_lightfx
+
+    monkeypatch.setattr(ha_lightfx, "MANIFEST_VERSION", "9.9.9")
+    monkeypatch.setattr(
+        ha_lightfx.Path,
+        "read_text",
+        MagicMock(side_effect=AssertionError("manifest should not be read here")),
+    )
+
+    assert ha_lightfx._frontend_resource_url() == f"{FRONTEND_URL}?v=9.9.9"

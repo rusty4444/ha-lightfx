@@ -52,15 +52,15 @@ PLATFORMS = []
 FRONTEND_URL = "/ha_lightfx/ha-lightfx-card.js"
 FRONTEND_PATH = Path(__file__).parent / "www" / "ha-lightfx-card.js"
 MANIFEST_PATH = Path(__file__).parent / "manifest.json"
+try:
+    MANIFEST_VERSION = json.loads(MANIFEST_PATH.read_text(encoding="utf-8")).get("version")
+except (OSError, json.JSONDecodeError):
+    MANIFEST_VERSION = None
 
 
 def _frontend_resource_url() -> str:
     """Return the Lovelace resource URL with a version query for cache busting."""
-    try:
-        version = json.loads(MANIFEST_PATH.read_text(encoding="utf-8")).get("version")
-    except (OSError, json.JSONDecodeError):
-        version = None
-    return f"{FRONTEND_URL}?v={version}" if version else FRONTEND_URL
+    return f"{FRONTEND_URL}?v={MANIFEST_VERSION}" if MANIFEST_VERSION else FRONTEND_URL
 
 
 def _same_frontend_resource(url: str | None) -> bool:

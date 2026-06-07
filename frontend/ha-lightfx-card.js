@@ -239,8 +239,8 @@ class HAFXLayoutCard extends LitElement {
       const layoutIds = Object.keys(this._layouts);
       if (this.config.default_layout && this._layouts[this.config.default_layout]) {
         this._selectedLayout = this.config.default_layout;
-      } else if (!this._selectedLayout && layoutIds.length > 0) {
-        this._selectedLayout = layoutIds[0];
+      } else if (!this._selectedLayout || !this._layouts[this._selectedLayout]) {
+        this._selectedLayout = layoutIds[0] || null;
       }
     } catch (err) {
       console.warn("HA LightFX: failed to fetch layouts", err);
@@ -517,8 +517,8 @@ class HAFXLayoutCard extends LitElement {
         ${lids.map(
           (lid) => html`
             <button
-              class="layout-btn ${classMap({ active: lid === this._selectedLayout })}"
-              @click="${() => this._selectLayout(lid)}"
+              class=${classMap({ "layout-btn": true, active: lid === this._selectedLayout })}
+              @click=${() => this._selectLayout(lid)}
             >
               ${this._layouts[lid].name}
               <span class="light-count">${this._layouts[lid].light_count || (this._layouts[lid].lights || []).length}</span>
@@ -542,7 +542,7 @@ class HAFXLayoutCard extends LitElement {
             <span>${this.config.title || DEFAULT_CONFIG.title}</span>
           </div>
           ${this.config.show_refresh_button ? html`
-            <button class="icon-btn" @click="${this._refreshLayouts}" title="Refresh layouts">↻</button>
+            <button class="icon-btn" @click=${this._refreshLayouts} title="Refresh layouts">↻</button>
           ` : ""}
         </div>
         <div class="card-content">
@@ -809,8 +809,12 @@ class HAFXLayoutCard extends LitElement {
   }
 }
 
-customElements.define("ha-lightfx-card-editor", HAFXLayoutCardEditor);
-customElements.define("ha-lightfx-card", HAFXLayoutCard);
+if (!customElements.get("ha-lightfx-card-editor")) {
+  customElements.define("ha-lightfx-card-editor", HAFXLayoutCardEditor);
+}
+if (!customElements.get("ha-lightfx-card")) {
+  customElements.define("ha-lightfx-card", HAFXLayoutCard);
+}
 
 // Card configuration
 window.customCards = window.customCards || [];
