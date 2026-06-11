@@ -303,7 +303,6 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="edit_light",
             data_schema=vol.Schema({
-                vol.Optional("_action"): cv.string,
                 vol.Required("x", default=existing.x):
                     vol.All(vol.Coerce(int), vol.Range(0, 100)),
                 vol.Required("y", default=existing.y):
@@ -332,7 +331,6 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
             return self.async_show_form(
                 step_id="edit_light",
                 data_schema=vol.Schema({
-                    vol.Optional("_action"): cv.string,
                     vol.Required("entity_id"): vol.In(ents),
                 }),
                 description_placeholders={"hint": "Pick the light to edit."},
@@ -357,7 +355,6 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="remove_light",
             data_schema=vol.Schema({
-                vol.Optional("_action"): cv.string,
                 vol.Required("confirm", default=False): bool,
             }),
             description_placeholders={"entity": entity_id},
@@ -376,7 +373,6 @@ class LightFXOptionsFlow(config_entries.OptionsFlow):
             return self.async_show_form(
                 step_id="remove_light",
                 data_schema=vol.Schema({
-                    vol.Optional("_action"): cv.string,
                     vol.Required("entity_id"): vol.In(ents),
                 }),
             )
@@ -549,7 +545,6 @@ def _LAYOUT_SCHEMA(default_name=""):
 
 def _LIGHT_SCHEMA():
     return vol.Schema({
-        vol.Optional("_action"): cv.string,
         vol.Required("entity_id"): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="light"),
         ),
