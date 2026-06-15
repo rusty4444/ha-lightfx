@@ -366,7 +366,7 @@ class HAFXLayoutCard extends LitElement {
       <div class="grid-container">
         <svg viewBox="0 0 100 100" class="layout-svg">
           <!-- Grid background -->
-          <rect x="0" y="0" width="100" height="100" fill="none" stroke="var(--secondary-text-color)" stroke-width="0.3" opacity="0.3" />
+          <rect x="0" y="0" width="100" height="100" fill="none" stroke="var(--secondary-text-color)" stroke-width="0.3" opacity="0.3"></rect>
 
           <!-- Light dots -->
           ${lights.map((lp) => {
@@ -388,7 +388,7 @@ class HAFXLayoutCard extends LitElement {
                   fill="${color}"
                   opacity="${isOn ? 1 : 0.4}"
                   class="light-dot"
-                />
+                ></circle>
                 ${isOn
                   ? html`<circle
                       cx="${dotX}"
@@ -397,7 +397,7 @@ class HAFXLayoutCard extends LitElement {
                       fill="${color}"
                       opacity="0.3"
                       class="light-glow"
-                    />`
+                    ></circle>`
                   : ""}
                 <text
                   x="${dotX}"
@@ -435,8 +435,10 @@ class HAFXLayoutCard extends LitElement {
         ${this._infoMsg ? html`<div class="info-msg">${this._infoMsg}</div>` : ""}
 
         <div class="control-row">
-          <label>Effect</label>
+          <label for="ha-lightfx-effect">Effect</label>
           <select
+            id="ha-lightfx-effect"
+            name="ha-lightfx-effect"
             @change="${(e) => (this._selectedEffect = e.target.value)}"
             .value="${this._selectedEffect}"
             ?disabled="${running}"
@@ -448,14 +450,18 @@ class HAFXLayoutCard extends LitElement {
         </div>
 
         <div class="control-row">
-          <label>Color</label>
+          <label for="ha-lightfx-color-primary">Color</label>
           <input
+            id="ha-lightfx-color-primary"
+            name="ha-lightfx-color-primary"
             type="color"
             .value="${this._color1}"
             @change="${(e) => (this._color1 = e.target.value)}"
             ?disabled="${running}"
           />
           <input
+            id="ha-lightfx-color-secondary"
+            name="ha-lightfx-color-secondary"
             type="color"
             .value="${this._color2}"
             @change="${(e) => (this._color2 = e.target.value)}"
@@ -464,8 +470,10 @@ class HAFXLayoutCard extends LitElement {
         </div>
 
         <div class="control-row">
-          <label>Brightness ${this._brightness}%</label>
+          <label for="ha-lightfx-brightness">Brightness ${this._brightness}%</label>
           <input
+            id="ha-lightfx-brightness"
+            name="ha-lightfx-brightness"
             type="range"
             min="1"
             max="100"
@@ -475,8 +483,10 @@ class HAFXLayoutCard extends LitElement {
         </div>
 
         <div class="control-row">
-          <label>Speed ${this._speed}%</label>
+          <label for="ha-lightfx-speed">Speed ${this._speed}%</label>
           <input
+            id="ha-lightfx-speed"
+            name="ha-lightfx-speed"
             type="range"
             min="1"
             max="100"

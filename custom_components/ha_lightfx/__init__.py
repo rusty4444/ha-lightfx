@@ -208,24 +208,30 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
             )
             return
 
-        existing_items = resources_collection.async_items()
-        for item in existing_items:
-            item_url = item.get("url")
-            if item_url == url:
-                return
-            if _same_frontend_resource(item_url):
-                item_id = item.get("id")
-                if item_id and hasattr(resources_collection, "async_update_item"):
-                    await resources_collection.async_update_item(
-                        item_id, {"res_type": "module", "url": url}
-                    )
-                    _LOGGER.info("HA LightFX: updated Lovelace resource %s", url)
-                else:
-                    _LOGGER.debug(
-                        "HA LightFX: frontend resource exists but cannot be updated automatically: %s",
-                        item_url,
-                    )
-                return
+        matching_items = [
+            item
+            for item in resources_collection.async_items()
+            if _same_frontend_resource(item.get("url"))
+        ]
+        if matching_items:
+            current_items = [item for item in matching_items if item.get("url") == url]
+            primary_item = current_items[0] if current_items else matching_items[0]
+            if primary_item.get("url") != url:
+                await _update_or_replace_lovelace_resource(
+                    resources_collection, primary_item, url
+                )
+            duplicate_items = [item for item in matching_items if item is not primary_item]
+            removed = 0
+            for item in duplicate_items:
+                if await _delete_lovelace_resource(resources_collection, item):
+                    removed += 1
+            if removed:
+                _LOGGER.info(
+                    "HA LightFX: removed %d duplicate Lovelace resource entr%s",
+                    removed,
+                    "y" if removed == 1 else "ies",
+                )
+            return
 
         await resources_collection.async_create_item({
             "res_type": "module",
@@ -235,6 +241,41 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
 
     except Exception as err:
         _LOGGER.debug("HA LightFX: could not auto-register Lovelace resource: %s", err)
+
+
+async def _update_or_replace_lovelace_resource(resources_collection, item, url: str) -> None:
+    """Update a Lovelace resource, falling back to delete/create when needed."""
+    item_id = item.get("id")
+    payload = {"res_type": "module", "url": url}
+    if item_id and hasattr(resources_collection, "async_update_item"):
+        await resources_collection.async_update_item(item_id, payload)
+        _LOGGER.info("HA LightFX: updated Lovelace resource %s", url)
+        return
+
+    if await _delete_lovelace_resource(resources_collection, item):
+        await resources_collection.async_create_item(payload)
+        _LOGGER.info("HA LightFX: replaced Lovelace resource %s", url)
+        return
+
+    _LOGGER.debug(
+        "HA LightFX: frontend resource exists but cannot be updated automatically: %s",
+        item.get("url"),
+    )
+
+
+async def _delete_lovelace_resource(resources_collection, item) -> bool:
+    """Delete a Lovelace resource item when the collection supports deletion."""
+    if not hasattr(resources_collection, "async_delete_item"):
+        return False
+    item_id = item.get("id")
+    if item_id:
+        await resources_collection.async_delete_item(item_id)
+        return True
+    try:
+        await resources_collection.async_delete_item(item)
+    except (TypeError, ValueError, KeyError):
+        return False
+    return True
 
 
 def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
