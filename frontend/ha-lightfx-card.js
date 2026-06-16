@@ -826,11 +826,13 @@ if (!customElements.get("ha-lightfx-card")) {
   customElements.define("ha-lightfx-card", HAFXLayoutCard);
 }
 
-// Card configuration
+// Card configuration (deduplicate so multiple resource loads don't create duplicate picker entries)
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "ha-lightfx-card",
-  name: "HA LightFX",
-  description: "Virtual WLED-style light effects control card",
-  preview: false,
-});
+if (!window.customCards.some((c) => c.type === "ha-lightfx-card")) {
+  window.customCards.push({
+    type: "ha-lightfx-card",
+    name: "HA LightFX",
+    description: "Virtual WLED-style light effects control card",
+    preview: false,
+  });
+}
