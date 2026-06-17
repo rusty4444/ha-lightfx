@@ -203,8 +203,14 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
     try:
         resources_collection = _lovelace_resources_collection(hass)
         if resources_collection is None:
-            _LOGGER.debug(
+            _LOGGER.warning(
                 "HA LightFX: Lovelace resources collection not found, skipping auto-registration"
+            )
+            return
+
+        if not hasattr(resources_collection, "async_items"):
+            _LOGGER.warning(
+                "HA LightFX: Lovelace resources collection missing async_items, skipping auto-registration"
             )
             return
 
@@ -240,7 +246,7 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
         _LOGGER.info("HA LightFX: auto-registered Lovelace resource %s", url)
 
     except Exception as err:
-        _LOGGER.debug("HA LightFX: could not auto-register Lovelace resource: %s", err)
+        _LOGGER.warning("HA LightFX: could not auto-register Lovelace resource: %s", err)
 
 
 async def _update_or_replace_lovelace_resource(resources_collection, item, url: str) -> None:
