@@ -28,3 +28,11 @@ def test_custom_elements_are_defined_idempotently() -> None:
 
     assert 'if (!customElements.get("ha-lightfx-card-editor"))' in source
     assert 'if (!customElements.get("ha-lightfx-card"))' in source
+
+
+def test_custom_card_picker_entries_are_replaced_not_appended() -> None:
+    """A current module load should remove stale HA LightFX picker entries."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert '.filter((card) => card.type !== "ha-lightfx-card")' in source
+    assert 'window.customCards.push(LIGHTFX_CUSTOM_CARD)' in source
