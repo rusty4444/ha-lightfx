@@ -17,10 +17,13 @@ from custom_components.ha_lightfx import (
 class MockResourcesCollection:
     """Minimal Lovelace resources collection for registration tests."""
 
-    def __init__(self, items=None):
+    def __init__(self, items=None, loaded=True):
         self.items = list(items or [])
+        self.loaded = loaded
+        self.async_load = AsyncMock()
         self.async_create_item = AsyncMock(side_effect=self._create)
         self.async_update_item = AsyncMock(side_effect=self._update)
+        self.async_delete_item = AsyncMock(side_effect=self._delete)
 
     def async_items(self):
         return self.items
@@ -37,12 +40,16 @@ class MockResourcesCollection:
                 return item
         raise KeyError(item_id)
 
+    async def _delete(self, item_id):
+        self.items = [item for item in self.items if item.get("id") != item_id]
+
 
 @pytest.mark.unit
 def test_same_frontend_resource_ignores_query_string() -> None:
     """Resource matching ignores cache-busting query params."""
     assert _same_frontend_resource(FRONTEND_URL)
     assert _same_frontend_resource(f"{FRONTEND_URL}?v=1.0.0")
+    assert _same_frontend_resource(f"http://homeassistant.local:8123{FRONTEND_URL}?v=1.0.0")
     assert not _same_frontend_resource("/local/other-card.js?v=1.0.0")
     assert not _same_frontend_resource(None)
 
@@ -108,6 +115,31 @@ async def test_register_lovelace_resource_skips_exact_match() -> None:
 
     collection.async_update_item.assert_not_awaited()
     collection.async_create_item.assert_not_awaited()
+
+
+@pytest.mark.unit
+async def test_register_lovelace_resource_loads_storage_before_deduping() -> None:
+    """Unloaded storage resources must be loaded before stale entries are matched."""
+    current_url = _frontend_resource_url()
+    collection = MockResourcesCollection(
+        [
+            {"id": "old-1", "url": f"{FRONTEND_URL}?v=1.1.5", "type": "module"},
+            {"id": "old-2", "url": f"{FRONTEND_URL}?v=1.1.6", "type": "module"},
+            {"id": "current", "url": current_url, "type": "module"},
+        ],
+        loaded=False,
+    )
+    hass = MagicMock()
+    hass.data = {"lovelace": SimpleNamespace(resources=collection)}
+
+    await _register_lovelace_resource(hass)
+
+    collection.async_load.assert_awaited_once()
+    collection.async_create_item.assert_not_awaited()
+    collection.async_update_item.assert_not_awaited()
+    collection.async_delete_item.assert_any_await("old-1")
+    collection.async_delete_item.assert_any_await("old-2")
+    assert [item["url"] for item in collection.items] == [current_url]
 
 
 @pytest.mark.unit

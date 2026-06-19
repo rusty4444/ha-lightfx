@@ -10,6 +10,7 @@ import json
 import logging
 import asyncio
 from pathlib import Path
+from urllib.parse import urlsplit
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -67,7 +68,7 @@ def _same_frontend_resource(url: str | None) -> bool:
     """Return true when a Lovelace resource points at this card, ignoring query params."""
     if not url:
         return False
-    return url.split("?", 1)[0] == FRONTEND_URL
+    return urlsplit(url).path == FRONTEND_URL
 
 
 def _lovelace_resources_collection(hass: HomeAssistant):
@@ -78,6 +79,15 @@ def _lovelace_resources_collection(hass: HomeAssistant):
     if isinstance(lovelace_data, dict):
         return lovelace_data.get("resources")
     return getattr(lovelace_data, "resources", None)
+
+
+async def _ensure_lovelace_resources_loaded(resources_collection) -> None:
+    """Load Lovelace storage resources before reading or mutating them."""
+    if getattr(resources_collection, "loaded", True):
+        return
+    if hasattr(resources_collection, "async_load"):
+        await resources_collection.async_load()
+        resources_collection.loaded = True
 
 
 SERVICE_NAMES = (
@@ -207,6 +217,8 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
                 "HA LightFX: Lovelace resources collection not found, skipping auto-registration"
             )
             return
+
+        await _ensure_lovelace_resources_loaded(resources_collection)
 
         if not hasattr(resources_collection, "async_items"):
             _LOGGER.warning(
