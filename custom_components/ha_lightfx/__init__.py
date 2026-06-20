@@ -90,6 +90,19 @@ async def _ensure_lovelace_resources_loaded(resources_collection) -> None:
         resources_collection.loaded = True
 
 
+async def _retry_lovelace_resource_registration(hass: HomeAssistant) -> None:
+    """Retry resource cleanup after Lovelace has finished initialising.
+
+    On some HA installs the custom integration setup can run before the
+    Lovelace resource collection is ready. A short delayed retry makes stale
+    versioned HA LightFX resources self-heal after restart instead of requiring
+    manual dashboard-resource cleanup.
+    """
+    for delay in (5, 30):
+        await asyncio.sleep(delay)
+        await _register_lovelace_resource(hass)
+
+
 SERVICE_NAMES = (
     SERVICE_CREATE_LAYOUT,
     SERVICE_REMOVE_LAYOUT,
@@ -149,6 +162,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Auto-register the card as a Lovelace dashboard resource
     await _register_lovelace_resource(hass)
+    hass.data[DOMAIN]["lovelace_retry_task"] = hass.async_create_task(
+        _retry_lovelace_resource_registration(hass)
+    )
 
     # Register WebSocket API
     await _register_websocket_api(hass, engine)
@@ -158,7 +174,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload HA LightFX."""
-    engine: LightFXEngine = hass.data[DOMAIN]["engine"]
+    domain_data = hass.data.get(DOMAIN, {})
+    retry_task = domain_data.get("lovelace_retry_task")
+    if retry_task and not retry_task.done():
+        retry_task.cancel()
+    engine: LightFXEngine = domain_data["engine"]
     # Cancel all running effect tasks before unload
     pending = []
     for lid, ls in engine._layouts.items():
