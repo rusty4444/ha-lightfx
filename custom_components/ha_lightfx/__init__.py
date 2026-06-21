@@ -177,9 +177,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not remaining_entries:
         for service_name in SERVICE_NAMES:
             hass.services.async_remove(DOMAIN, service_name)
+        # Clean up Lovelace resources when the last config entry is unloaded
+        await _unregister_all_lovelace_resources(hass)
 
     hass.data.pop(DOMAIN, None)
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Clean up when the config entry is fully removed from Home Assistant."""
+    await _unregister_all_lovelace_resources(hass)
+    _LOGGER.info("HA LightFX: config entry removed, Lovelace resources cleaned up")
 
 
 async def _register_frontend(hass: HomeAssistant) -> None:
@@ -243,11 +251,22 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
             for item in duplicate_items:
                 if await _delete_lovelace_resource(resources_collection, item):
                     removed += 1
+                else:
+                    _LOGGER.debug(
+                        "HA LightFX: could not delete stale resource %s",
+                        item.get("url", item.get("id", str(item))),
+                    )
             if removed:
                 _LOGGER.info(
                     "HA LightFX: removed %d duplicate Lovelace resource entr%s",
                     removed,
                     "y" if removed == 1 else "ies",
+                )
+            if len(duplicate_items) > removed:
+                _LOGGER.warning(
+                    "HA LightFX: %d stale Lovelace resource(s) could not be removed automatically. "
+                    "Check Settings → Dashboards → Resources and remove old /ha_lightfx/ entries manually.",
+                    len(duplicate_items) - removed,
                 )
             return
 
@@ -294,6 +313,49 @@ async def _delete_lovelace_resource(resources_collection, item) -> bool:
     except (TypeError, ValueError, KeyError):
         return False
     return True
+
+
+async def _unregister_all_lovelace_resources(hass: HomeAssistant) -> None:
+    """Remove ALL HA LightFX Lovelace resources, regardless of version."""
+    try:
+        resources_collection = _lovelace_resources_collection(hass)
+        if resources_collection is None:
+            _LOGGER.debug("HA LightFX: no Lovelace resources collection, skipping cleanup")
+            return
+
+        await _ensure_lovelace_resources_loaded(resources_collection)
+
+        if not hasattr(resources_collection, "async_items"):
+            _LOGGER.debug("HA LightFX: resources collection missing async_items, skipping cleanup")
+            return
+
+        matching_items = [
+            item
+            for item in resources_collection.async_items()
+            if _same_frontend_resource(item.get("url"))
+        ]
+        if not matching_items:
+            _LOGGER.debug("HA LightFX: no Lovelace resources to clean up")
+            return
+
+        removed = 0
+        for item in matching_items:
+            if await _delete_lovelace_resource(resources_collection, item):
+                removed += 1
+            else:
+                _LOGGER.debug(
+                    "HA LightFX: could not delete Lovelace resource %s",
+                    item.get("url", item.get("id", str(item))),
+                )
+
+        if removed:
+            _LOGGER.info(
+                "HA LightFX: cleaned up %d Lovelace resource entr%s",
+                removed,
+                "y" if removed == 1 else "ies",
+            )
+    except Exception as err:
+        _LOGGER.warning("HA LightFX: error cleaning up Lovelace resources: %s", err)
 
 
 def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
