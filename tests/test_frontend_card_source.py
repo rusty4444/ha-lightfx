@@ -22,17 +22,19 @@ def test_class_map_is_the_only_layout_button_class_expression() -> None:
     assert 'class="layout-btn ${classMap' not in source
 
 
-def test_custom_elements_are_defined_idempotently() -> None:
-    """Duplicate Lovelace resources should not crash module evaluation."""
+def test_custom_elements_are_defined_or_patched_idempotently() -> None:
+    """Stale cached resources should not leave an old custom element active."""
     source = FRONTEND_SOURCE.read_text(encoding="utf-8")
 
-    assert 'if (!customElements.get("ha-lightfx-card-editor"))' in source
-    assert 'if (!customElements.get("ha-lightfx-card"))' in source
+    assert 'defineOrPatchCustomElement("ha-lightfx-card-editor", HAFXLayoutCardEditor)' in source
+    assert 'defineOrPatchCustomElement("ha-lightfx-card", HAFXLayoutCard)' in source
+    assert "Object.defineProperty(existing.prototype, key, descriptor)" in source
 
 
 def test_custom_card_picker_entries_are_replaced_not_appended() -> None:
     """A current module load should remove stale HA LightFX picker entries."""
     source = FRONTEND_SOURCE.read_text(encoding="utf-8")
 
-    assert '.filter((card) => card.type !== "ha-lightfx-card")' in source
-    assert 'window.customCards.push(LIGHTFX_CUSTOM_CARD)' in source
+    assert 'Symbol.for("ha-lightfx.customCardsPush")' in source
+    assert "dedupeLightfxCustomCards" in source
+    assert 'cards[i]?.type === LIGHTFX_CUSTOM_CARD.type' in source

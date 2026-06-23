@@ -819,19 +819,95 @@ class HAFXLayoutCard extends LitElement {
   }
 }
 
-if (!customElements.get("ha-lightfx-card-editor")) {
-  customElements.define("ha-lightfx-card-editor", HAFXLayoutCardEditor);
-}
-if (!customElements.get("ha-lightfx-card")) {
-  customElements.define("ha-lightfx-card", HAFXLayoutCard);
+function defineOrPatchCustomElement(name, elementClass) {
+  const existing = customElements.get(name);
+  if (!existing) {
+    customElements.define(name, elementClass);
+    return;
+  }
+
+  // A stale cached resource can win the customElements.define race. Custom
+  // elements cannot be redefined, so patch the registered prototype in-place
+  // with the current implementation and ask existing card instances to rerender.
+  if (existing === elementClass || existing.__haLightfxPatchedCurrent) return;
+
+  for (const key of Object.getOwnPropertyNames(elementClass.prototype)) {
+    if (key === "constructor") continue;
+    const descriptor = Object.getOwnPropertyDescriptor(elementClass.prototype, key);
+    if (descriptor) {
+      try {
+        Object.defineProperty(existing.prototype, key, descriptor);
+      } catch (_err) {
+        // Keep loading the card even if a browser refuses a descriptor patch.
+      }
+    }
+  }
+
+  for (const key of Object.getOwnPropertyNames(elementClass)) {
+    if (["length", "name", "prototype"].includes(key)) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(elementClass, key);
+    if (descriptor) {
+      try {
+        Object.defineProperty(existing, key, descriptor);
+      } catch (_err) {
+        // Static Lit metadata is best-effort when patching an already-finalised class.
+      }
+    }
+  }
+
+  existing.__haLightfxPatchedCurrent = true;
+  requestAnimationFrame(() => {
+    document.querySelectorAll(name).forEach((el) => el.requestUpdate?.());
+  });
 }
 
-// Card configuration (deduplicate so multiple resource loads don't create duplicate picker entries)
+defineOrPatchCustomElement("ha-lightfx-card-editor", HAFXLayoutCardEditor);
+defineOrPatchCustomElement("ha-lightfx-card", HAFXLayoutCard);
+
+// Card configuration. Keep this robust when stale cached HA LightFX resources
+// load before or after the current one: install a push wrapper and repeatedly
+// normalise to a single picker entry.
 const LIGHTFX_CUSTOM_CARD = {
   type: "ha-lightfx-card",
   name: "HA LightFX",
   description: "Virtual WLED-style light effects control card",
   preview: false,
 };
-window.customCards = (window.customCards || []).filter((card) => card.type !== "ha-lightfx-card");
-window.customCards.push(LIGHTFX_CUSTOM_CARD);
+const LIGHTFX_CUSTOM_CARDS_PUSH = Symbol.for("ha-lightfx.customCardsPush");
+
+function lightfxCustomCards() {
+  if (!Array.isArray(window.customCards)) window.customCards = [];
+  return window.customCards;
+}
+
+function dedupeLightfxCustomCards() {
+  const cards = lightfxCustomCards();
+  for (let i = cards.length - 1; i >= 0; i -= 1) {
+    if (cards[i]?.type === LIGHTFX_CUSTOM_CARD.type) cards.splice(i, 1);
+  }
+  const push = cards[LIGHTFX_CUSTOM_CARDS_PUSH] || Array.prototype.push.bind(cards);
+  push(LIGHTFX_CUSTOM_CARD);
+}
+
+function installLightfxCustomCardsDedupe() {
+  const cards = lightfxCustomCards();
+  if (!cards[LIGHTFX_CUSTOM_CARDS_PUSH]) {
+    Object.defineProperty(cards, LIGHTFX_CUSTOM_CARDS_PUSH, {
+      value: Array.prototype.push.bind(cards),
+      configurable: false,
+    });
+    Object.defineProperty(cards, "push", {
+      configurable: true,
+      writable: true,
+      value(...items) {
+        const result = cards[LIGHTFX_CUSTOM_CARDS_PUSH](...items);
+        dedupeLightfxCustomCards();
+        return result;
+      },
+    });
+  }
+  dedupeLightfxCustomCards();
+}
+
+installLightfxCustomCardsDedupe();
+[0, 250, 1000, 3000].forEach((delay) => setTimeout(dedupeLightfxCustomCards, delay));
