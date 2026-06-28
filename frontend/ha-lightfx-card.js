@@ -215,11 +215,16 @@ class HAFXLayoutCard extends LitElement {
   set hass(hass) {
     const oldHass = this._hass;
     this._hass = hass;
+    if (!oldHass && hass) {
+      void this._refreshLayouts();
+    }
     if (oldHass !== hass) this.requestUpdate();
   }
 
   firstUpdated() {
-    this._refreshLayouts();
+    if (this._hass) {
+      void this._refreshLayouts();
+    }
     this._loaded = true;
   }
 
@@ -857,7 +862,12 @@ function defineOrPatchCustomElement(name, elementClass) {
 
   existing.__haLightfxPatchedCurrent = true;
   requestAnimationFrame(() => {
-    document.querySelectorAll(name).forEach((el) => el.requestUpdate?.());
+    document.querySelectorAll(name).forEach((el) => {
+      if (name === "ha-lightfx-card" && el._hass && typeof el._refreshLayouts === "function") {
+        void el._refreshLayouts();
+      }
+      el.requestUpdate?.();
+    });
   });
 }
 

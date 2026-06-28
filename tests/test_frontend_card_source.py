@@ -22,6 +22,24 @@ def test_class_map_is_the_only_layout_button_class_expression() -> None:
     assert 'class="layout-btn ${classMap' not in source
 
 
+def test_hass_setter_fetches_layouts_after_home_assistant_is_available() -> None:
+    """If firstUpdated ran before hass was assigned, the card must still load layouts."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert "if (!oldHass && hass)" in source
+    assert "void this._refreshLayouts();" in source
+    assert "if (this._hass)" in source
+
+
+def test_patched_stale_card_instances_refetch_layouts() -> None:
+    """Patching a stale custom element should reload layout data, not just rerender old state."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert 'name === "ha-lightfx-card"' in source
+    assert "typeof el._refreshLayouts === \"function\"" in source
+    assert "void el._refreshLayouts();" in source
+
+
 def test_custom_elements_are_defined_or_patched_idempotently() -> None:
     """Stale cached resources should not leave an old custom element active."""
     source = FRONTEND_SOURCE.read_text(encoding="utf-8")
