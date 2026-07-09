@@ -30,6 +30,58 @@ def _hex_or_rgb(val, default):
         return tuple(int(c) for c in val[:3])
     return default
 
+
+def _restore_light_service_data(attrs: dict[str, Any]) -> dict[str, Any]:
+    """Build a valid ``light.turn_on`` payload from a saved state snapshot.
+
+    Home Assistant light services only accept one colour family at a time. State
+    snapshots commonly contain several derived colour attributes at once
+    (``hs_color``, ``rgb_color``, ``xy_color``, ``color_temp_kelvin``). Passing all
+    of them back can make ``light.turn_on`` fail validation, so restore the
+    colour attribute that matches the original ``color_mode`` and keep generic
+    writable fields such as brightness/effect.
+    """
+    data: dict[str, Any] = {}
+    if attrs.get("brightness") is not None:
+        data["brightness"] = attrs["brightness"]
+
+    color_mode = attrs.get("color_mode")
+    if not isinstance(color_mode, str):
+        color_mode = ""
+    color_mode_keys = {
+        "rgb": ("rgb_color",),
+        "rgbw": ("rgbw_color",),
+        "rgbww": ("rgbww_color",),
+        "hs": ("hs_color",),
+        "xy": ("xy_color",),
+        "white": ("white", "white_value"),
+        "color_temp": ("color_temp_kelvin", "color_temp"),
+    }
+    fallback_keys = (
+        "rgbw_color",
+        "rgbww_color",
+        "rgb_color",
+        "hs_color",
+        "xy_color",
+        "color_temp_kelvin",
+        "color_temp",
+        "white",
+        "white_value",
+    )
+    for key in color_mode_keys.get(color_mode, fallback_keys):
+        value = attrs.get(key)
+        if value is not None:
+            data[key] = value
+            break
+
+    for key in ("effect", "flash", "transition", "profile"):
+        value = attrs.get(key)
+        if value is not None:
+            data[key] = value
+
+    return data
+
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -317,31 +369,7 @@ class LightFXEngine:
                     )
                     continue
 
-                # Restore service-writable light attributes from the snapshot.
-                # Different integrations expose their original colour in different
-                # writable fields (Hue: hs/xy, LiFX/Tuya/RGBW: rgbw/rgbww/white).
-                # Do not pass read-only attributes such as color_mode or
-                # supported_color_modes back to light.turn_on.
-                data = {}
-                for key in (
-                    "brightness",
-                    "rgb_color",
-                    "rgbw_color",
-                    "rgbww_color",
-                    "hs_color",
-                    "xy_color",
-                    "color_temp",
-                    "color_temp_kelvin",
-                    "white_value",
-                    "white",
-                    "effect",
-                    "flash",
-                    "transition",
-                    "profile",
-                ):
-                    value = attrs.get(key)
-                    if value is not None:
-                        data[key] = value
+                data = _restore_light_service_data(attrs)
 
                 if data:
                     service_data = {"entity_id": entity_id, **data}

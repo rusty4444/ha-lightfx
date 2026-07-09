@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.ha_lightfx import LightFXEngine
 from custom_components.ha_lightfx.const import EFFECTS
+from custom_components.ha_lightfx.lightfx_engine import _restore_light_service_data
 
 
 @pytest.mark.unit
@@ -233,8 +234,8 @@ def test_from_storage_corrupted_layout_skipped() -> None:
 
 
 @pytest.mark.unit
-def test_stop_effect_restores_rgbw_rgbww_and_white_attributes() -> None:
-    """Restore colour attributes used by RGBW/RGBWW/white-capable lights."""
+def test_stop_effect_restores_one_colour_attribute_matching_color_mode() -> None:
+    """Restore one colour family matching the original colour mode."""
     hass = MagicMock()
     call_service = MagicMock()
     engine = LightFXEngine(hass, call_service)
@@ -270,11 +271,54 @@ def test_stop_effect_restores_rgbw_rgbww_and_white_attributes() -> None:
             "entity_id": "light.rgbw",
             "brightness": 123,
             "rgbw_color": (1, 2, 3, 4),
-            "rgbww_color": (5, 6, 7, 8, 9),
-            "white": 42,
         },
     )
     assert layout.previous_states == {}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("color_mode", "expected_key", "expected_value"),
+    [
+        ("hs", "hs_color", (10, 20)),
+        ("xy", "xy_color", (0.2, 0.3)),
+        ("color_temp", "color_temp_kelvin", 2700),
+        ("rgbww", "rgbww_color", (1, 2, 3, 4, 5)),
+        ("white", "white", 64),
+    ],
+)
+def test_restore_light_service_data_uses_only_the_original_colour_mode(
+    color_mode, expected_key, expected_value
+) -> None:
+    """Restore payloads must not send mutually-exclusive colour families."""
+    attrs = {
+        "brightness": 200,
+        "color_mode": color_mode,
+        "hs_color": (10, 20),
+        "xy_color": (0.2, 0.3),
+        "rgb_color": (10, 20, 30),
+        "rgbw_color": (10, 20, 30, 40),
+        "rgbww_color": (1, 2, 3, 4, 5),
+        "color_temp_kelvin": 2700,
+        "white": 64,
+    }
+
+    data = _restore_light_service_data(attrs)
+
+    assert data["brightness"] == 200
+    assert data[expected_key] == expected_value
+    mutually_exclusive = {
+        "hs_color",
+        "xy_color",
+        "rgb_color",
+        "rgbw_color",
+        "rgbww_color",
+        "color_temp_kelvin",
+        "color_temp",
+        "white",
+        "white_value",
+    }
+    assert sorted(mutually_exclusive.intersection(data)) == [expected_key]
 
 
 @pytest.mark.unit
