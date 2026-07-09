@@ -56,3 +56,25 @@ def test_custom_card_picker_entries_are_replaced_not_appended() -> None:
     assert 'Symbol.for("ha-lightfx.customCardsPush")' in source
     assert "dedupeLightfxCustomCards" in source
     assert 'cards[i]?.type === LIGHTFX_CUSTOM_CARD.type' in source
+
+
+def test_light_markers_render_as_html_overlay_not_nested_svg_circles() -> None:
+    """Light dots should not depend on SVG child parsing quirks in browsers."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert 'class="layout-surface"' in source
+    assert 'class="light-layer"' in source
+    assert '"light-marker": true' in source
+    assert '<span class="light-dot"></span>' in source
+    assert '<circle' not in source
+    assert 'class="light-group' not in source
+
+
+def test_light_marker_positions_are_normalised_and_duplicate_safe() -> None:
+    """Missing/bad coordinates and duplicate default positions should still be visible."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert "_normaliseCoord(value)" in source
+    assert "if (!Number.isFinite(number)) return 50" in source
+    assert "_visualPosition(lp, lights, x, y)" in source
+    assert "siblings.length <= 1" in source

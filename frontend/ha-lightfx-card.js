@@ -276,10 +276,10 @@ class HAFXLayoutCard extends LitElement {
 
   _onDragMove = (e) => {
     if (!this._dragState || !this._hass) return;
-    const svg = this.shadowRoot?.querySelector(".layout-svg");
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    if (!rect.width) return;
+    const surface = this.shadowRoot?.querySelector(".layout-surface") || this.shadowRoot?.querySelector(".layout-svg");
+    if (!surface) return;
+    const rect = surface.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const dx = ((e.clientX - rect.left) / rect.width) * 100;
     const dy = ((e.clientY - rect.top) / rect.height) * 100;
     this._dragState.currentX = Math.round(Math.max(0, Math.min(100, dx)));
@@ -306,6 +306,31 @@ class HAFXLayoutCard extends LitElement {
       });
     }
   };
+
+  _normaliseCoord(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 50;
+    return Math.max(0, Math.min(100, number));
+  }
+
+  _visualPosition(lp, lights, x, y) {
+    const siblings = lights.filter(
+      (other) => this._normaliseCoord(other.x) === this._normaliseCoord(lp.x)
+        && this._normaliseCoord(other.y) === this._normaliseCoord(lp.y)
+    );
+    if (siblings.length <= 1 || this._dragState?.entityId === lp.entity_id) {
+      return { x, y };
+    }
+
+    const index = siblings.findIndex((other) => other.entity_id === lp.entity_id);
+    if (index < 0) return { x, y };
+    const angle = (Math.PI * 2 * index) / siblings.length;
+    const radius = Math.min(8, 3 + siblings.length * 0.8);
+    return {
+      x: Math.max(2, Math.min(98, x + Math.cos(angle) * radius)),
+      y: Math.max(2, Math.min(98, y + Math.sin(angle) * radius)),
+    };
+  }
 
   async _callService(service, data = {}, refreshAfter = true) {
     if (!this._hass) return false;
@@ -369,54 +394,45 @@ class HAFXLayoutCard extends LitElement {
 
     return html`
       <div class="grid-container">
-        <svg viewBox="0 0 100 100" class="layout-svg">
-          <!-- Grid background -->
-          <rect x="0" y="0" width="100" height="100" fill="none" stroke="var(--secondary-text-color)" stroke-width="0.3" opacity="0.3"></rect>
-
-          <!-- Light dots -->
-          ${lights.map((lp) => {
+        <div class="layout-surface">
+          <svg viewBox="0 0 100 100" class="layout-svg" aria-hidden="true">
+            <!-- Grid background -->
+            <rect x="0" y="0" width="100" height="100" fill="none" stroke="var(--secondary-text-color)" stroke-width="0.3" opacity="0.35"></rect>
+            ${[25, 50, 75].map((pos) => html`
+              <line x1="${pos}" y1="0" x2="${pos}" y2="100" stroke="var(--secondary-text-color)" stroke-width="0.15" opacity="0.2"></line>
+              <line x1="0" y1="${pos}" x2="100" y2="${pos}" stroke="var(--secondary-text-color)" stroke-width="0.15" opacity="0.2"></line>
+            `)}
+          </svg>
+          <div class="light-layer">
+            ${lights.map((lp) => {
             const color = ZONE_COLORS[lp.zone] || ZONE_COLORS.other;
             const state = this._hass ? this._hass.states[lp.entity_id] : null;
             const isOn = state && state.state === "on";
             const isDragging = this._dragState?.entityId === lp.entity_id;
-            const dotX = isDragging && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x;
-            const dotY = isDragging && this._dragState?.currentY !== undefined ? this._dragState.currentY : lp.y;
+            const baseX = this._normaliseCoord(isDragging && this._dragState?.currentX !== undefined ? this._dragState.currentX : lp.x);
+            const baseY = this._normaliseCoord(isDragging && this._dragState?.currentY !== undefined ? this._dragState.currentY : lp.y);
+            const { x: dotX, y: dotY } = this._visualPosition(lp, lights, baseX, baseY);
+            const markerClasses = {
+              "light-marker": true,
+              on: isOn,
+              dragging: isDragging,
+              draggable: this.config.allow_drag,
+            };
             return html`
-              <g
+              <button
+                type="button"
+                class=${classMap(markerClasses)}
+                style="left:${dotX}%; top:${dotY}%; --light-color:${color}; opacity:${isOn ? 1 : 0.55};"
+                title="${this._friendlyName(lp.entity_id)} (${lp.entity_id})"
                 @pointerdown="${(e) => this.config.allow_drag && this._onDragStart(e, lp)}"
-                class="light-group${this._dragState?.entityId === lp.entity_id ? ' dragging' : ''}${this.config.allow_drag ? ' draggable' : ''}"
               >
-                <circle
-                  cx="${dotX}"
-                  cy="${dotY}"
-                  r="${isOn ? 3.5 : 2.5}"
-                  fill="${color}"
-                  opacity="${isOn ? 1 : 0.4}"
-                  class="light-dot"
-                ></circle>
-                ${isOn
-                  ? html`<circle
-                      cx="${dotX}"
-                      cy="${dotY}"
-                      r="5"
-                      fill="${color}"
-                      opacity="0.3"
-                      class="light-glow"
-                    ></circle>`
-                  : ""}
-                <text
-                  x="${dotX}"
-                  y="${dotY + 5}"
-                  text-anchor="middle"
-                  font-size="3"
-                  fill="var(--primary-text-color)"
-                >
-                  ${this._friendlyName(lp.entity_id)}
-                </text>
-              </g>
+                <span class="light-dot"></span>
+                <span class="light-label">${this._friendlyName(lp.entity_id)}</span>
+              </button>
             `;
           })}
-        </svg>
+          </div>
+        </div>
         ${this.config.show_zone_legend ? html`
           <!-- Zone legend (only zones present in layout) -->
           <div class="zone-legend">
@@ -673,31 +689,79 @@ class HAFXLayoutCard extends LitElement {
         border-radius: 12px;
         padding: 8px;
       }
-      .layout-svg {
+      .layout-surface {
+        position: relative;
         width: 100%;
-        height: auto;
         aspect-ratio: 1;
+        overflow: hidden;
+        border-radius: 8px;
       }
-      .light-group.draggable {
+      .layout-svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .light-layer {
+        position: absolute;
+        inset: 0;
+      }
+      .light-marker {
+        position: absolute;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        min-width: 44px;
+        max-width: 90px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--primary-text-color);
+        font: inherit;
+        text-align: center;
+        transform: translate(-50%, -50%);
+        transition: left 0.2s ease, top 0.2s ease, opacity 0.2s ease;
+      }
+      .light-marker.draggable {
         cursor: grab;
       }
-      .light-group:active {
+      .light-marker:active {
         cursor: grabbing;
       }
-      .light-group text {
-        pointer-events: none;
-      }
-      .light-group .light-glow {
-        pointer-events: none;
-      }
       .light-dot {
-        transition: all 0.3s;
+        position: relative;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: var(--light-color);
+        border: 2px solid var(--card-background-color);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 12px var(--light-color);
+        pointer-events: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
-      .light-dot.dragging {
+      .light-marker.on .light-dot {
+        transform: scale(1.15);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 18px var(--light-color);
+      }
+      .light-marker.dragging {
+        z-index: 2;
         transition: none;
       }
-      .light-group.dragging .light-dot {
-        transition: none;
+      .light-label {
+        max-width: 90px;
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: var(--card-background-color);
+        font-size: 11px;
+        line-height: 1.15;
+        overflow: hidden;
+        pointer-events: none;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 2px var(--card-background-color);
+        white-space: nowrap;
       }
       .zone-legend {
         display: flex;
