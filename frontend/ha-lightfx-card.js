@@ -983,5 +983,30 @@ function installLightfxCustomCardsDedupe() {
   dedupeLightfxCustomCards();
 }
 
+// Guard against window.customCards being reassigned (replacing the push wrapper)
+let _lightfxCustomCardsValue = window.customCards;
+Object.defineProperty(window, "customCards", {
+  configurable: true,
+  enumerable: true,
+  get() { return _lightfxCustomCardsValue; },
+  set(newValue) {
+    _lightfxCustomCardsValue = newValue;
+    if (Array.isArray(newValue)) {
+      installLightfxCustomCardsDedupe();
+    }
+  },
+});
+
 installLightfxCustomCardsDedupe();
-[0, 250, 1000, 3000].forEach((delay) => setTimeout(dedupeLightfxCustomCards, delay));
+[0, 250, 1000, 3000, 5000, 10000].forEach((delay) => setTimeout(dedupeLightfxCustomCards, delay));
+
+// Aggressive early dedup: run on every animation frame for the first 2 seconds
+// to catch late-arriving resources from parallel Lovelace loads
+let _lightfxDedupRafStart = performance.now();
+function _lightfxDedupRaf() {
+  if (performance.now() - _lightfxDedupRafStart < 2000) {
+    dedupeLightfxCustomCards();
+    requestAnimationFrame(_lightfxDedupRaf);
+  }
+}
+requestAnimationFrame(_lightfxDedupRaf);
