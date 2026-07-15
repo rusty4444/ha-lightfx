@@ -9,6 +9,12 @@
 import { LitElement, html, css } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 
+const CARD_VERSION = "1.1.13";
+if (typeof window !== "undefined") {
+  window.__haLightfxCardVersion = CARD_VERSION;
+  console.debug("HA LightFX card loaded: v" + CARD_VERSION);
+}
+
 const EFFECTS = [
   "rainbow",
   "chase",
@@ -387,10 +393,18 @@ class HAFXLayoutCard extends LitElement {
   _renderGrid() {
     const layout = this._layouts[this._selectedLayout];
     if (!layout || !layout.lights || layout.lights.length === 0) {
+      const reason = !layout ? "no layout" : "no lights array or empty";
+      console.debug("HA LightFX: _renderGrid empty —", reason, {
+        selectedLayout: this._selectedLayout,
+        layoutKeys: Object.keys(this._layouts),
+        layoutExists: !!layout,
+        lightCount: layout ? (layout.lights ? layout.lights.length : "lights undefined") : "N/A",
+      });
       return html`<div class="empty-grid">No lights in this layout. Use the integration services to add lights.</div>`;
     }
 
     const lights = layout.lights;
+    console.debug("HA LightFX: rendering grid with", lights.length, "lights for layout", this._selectedLayout);
 
     return html`
       <div class="grid-container">
@@ -736,9 +750,9 @@ class HAFXLayoutCard extends LitElement {
         width: 16px;
         height: 16px;
         border-radius: 999px;
-        background: var(--light-color);
+        background: var(--light-color, #888);
         border: 2px solid var(--card-background-color);
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 12px var(--light-color);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 0 12px var(--light-color, #888);
         pointer-events: none;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
