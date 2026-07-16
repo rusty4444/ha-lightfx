@@ -997,5 +997,49 @@ function installLightfxCustomCardsDedupe() {
   dedupeLightfxCustomCards();
 }
 
+// Some Lovelace/plugin stacks replace window.customCards after this module has
+// installed its push wrapper. Guard the property so replacement arrays are
+// immediately wrapped and deduplicated again, instead of letting stale HA
+// LightFX card metadata reappear in the picker.
+let _lightfxCustomCardsValue = window.customCards;
+try {
+  const descriptor = Object.getOwnPropertyDescriptor(window, "customCards");
+  if (!descriptor || descriptor.configurable) {
+    Object.defineProperty(window, "customCards", {
+      configurable: true,
+      enumerable: true,
+      get() { return _lightfxCustomCardsValue; },
+      set(newValue) {
+        _lightfxCustomCardsValue = newValue;
+        if (Array.isArray(newValue)) {
+          installLightfxCustomCardsDedupe();
+        }
+      },
+    });
+  }
+} catch (_err) {
+  // If the host page refuses the property guard, the normal push wrapper and
+  // timed dedupe passes below still keep the card usable.
+}
+
 installLightfxCustomCardsDedupe();
-[0, 250, 1000, 3000].forEach((delay) => setTimeout(dedupeLightfxCustomCards, delay));
+[0, 250, 1000, 3000, 5000, 10000].forEach((delay) => setTimeout(dedupeLightfxCustomCards, delay));
+
+// During Lovelace startup, resources load in parallel and stale modules can
+// append picker entries after the early timers have run. Deduplicate every frame
+// for the first two seconds to close that race without leaving a permanent loop.
+const _lightfxDedupNow = () => (
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now()
+);
+const _lightfxDedupRafStart = _lightfxDedupNow();
+function _lightfxDedupRaf() {
+  if (_lightfxDedupNow() - _lightfxDedupRafStart < 2000) {
+    dedupeLightfxCustomCards();
+    requestAnimationFrame(_lightfxDedupRaf);
+  }
+}
+if (typeof requestAnimationFrame === "function") {
+  requestAnimationFrame(_lightfxDedupRaf);
+}

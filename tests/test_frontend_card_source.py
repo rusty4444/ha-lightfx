@@ -58,6 +58,32 @@ def test_custom_card_picker_entries_are_replaced_not_appended() -> None:
     assert 'cards[i]?.type === LIGHTFX_CUSTOM_CARD.type' in source
 
 
+def test_custom_card_picker_dedupe_survives_customcards_reassignment() -> None:
+    """Some Lovelace stacks replace window.customCards after modules load."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert 'Object.defineProperty(window, "customCards"' in source
+    assert "set(newValue)" in source
+    assert "_lightfxCustomCardsValue = newValue" in source
+    assert "installLightfxCustomCardsDedupe();" in source
+
+
+def test_custom_card_picker_dedupe_catches_late_parallel_resource_loads() -> None:
+    """Late stale resources should be compacted after the first load pass."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert "[0, 250, 1000, 3000, 5000, 10000]" in source
+    assert "function _lightfxDedupRaf()" in source
+    assert "requestAnimationFrame(_lightfxDedupRaf);" in source
+
+
+def test_light_dot_colour_has_safe_fallback() -> None:
+    """Theme or stale-load CSS issues should not make light dots invisible."""
+    source = FRONTEND_SOURCE.read_text(encoding="utf-8")
+
+    assert "var(--light-color, #888)" in source
+
+
 def test_light_markers_render_as_html_overlay_not_nested_svg_circles() -> None:
     """Light dots should not depend on SVG child parsing quirks in browsers."""
     source = FRONTEND_SOURCE.read_text(encoding="utf-8")
