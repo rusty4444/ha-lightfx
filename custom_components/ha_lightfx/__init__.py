@@ -425,16 +425,21 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
     )
 
     # ── add_light ──────────────────────────────────────────────────
-    async def handle_add_light(call: ServiceCall) -> None:
+    async def handle_add_light(call: ServiceCall) -> dict | None:
         lid = call.data["layout_id"]
         ls = engine.get_layout(lid)
         if not _check_layout(ls, lid):
-            return
+            if getattr(call, "return_response", False):
+                return {"ok": False, "error": f"Layout '{lid}' not found"}
+            return None
         entity_id = call.data["entity_id"]
         # Validate the light entity exists in HA
         if not hass.states.get(entity_id):
-            _LOGGER.warning("Light entity '%s' not found in Home Assistant", entity_id)
-            return
+            msg = f"Light entity '{entity_id}' not found in Home Assistant"
+            _LOGGER.warning(msg)
+            if getattr(call, "return_response", False):
+                return {"ok": False, "error": msg}
+            return None
         engine.add_light(
             lid,
             entity_id,
@@ -444,6 +449,9 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             zone=call.data.get("zone", "other"),
         )
         await _save(hass)
+        if getattr(call, "return_response", False):
+            return {"ok": True, "layout_id": lid, "entity_id": entity_id}
+        return None
 
     hass.services.async_register(
         DOMAIN, SERVICE_ADD_LIGHT, handle_add_light,
@@ -457,16 +465,24 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
                 ["ceiling", "wall", "accent", "floor", "other"]
             ),
         }),
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     # ── remove_light ───────────────────────────────────────────────
-    async def handle_remove_light(call: ServiceCall) -> None:
+    async def handle_remove_light(call: ServiceCall) -> dict | None:
         lid = call.data["layout_id"]
         ls = engine.get_layout(lid)
         if not _check_layout(ls, lid):
-            return
-        engine.remove_light(lid, call.data["entity_id"])
+            if getattr(call, "return_response", False):
+                return {"ok": False, "error": f"Layout '{lid}' not found"}
+            return None
+        removed = engine.remove_light(lid, call.data["entity_id"])
+        if not removed and getattr(call, "return_response", False):
+            return {"ok": False, "error": f"Light '{call.data['entity_id']}' not found in layout"}
         await _save(hass)
+        if getattr(call, "return_response", False):
+            return {"ok": True, "layout_id": lid}
+        return None
 
     hass.services.async_register(
         DOMAIN, SERVICE_REMOVE_LIGHT, handle_remove_light,
@@ -474,6 +490,7 @@ def _register_services(hass: HomeAssistant, engine: LightFXEngine) -> None:
             vol.Required("layout_id"): cv.string,
             vol.Required("entity_id"): cv.entity_id,
         }),
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     # ── start_effect ──────────────────────────────────────────────
