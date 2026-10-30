@@ -602,9 +602,9 @@ class LightFXEngine:
             return {
                 lp.entity_id: {
                     "rgb_color": (
-                        min(255, max(180, int(c1[0] * (0.6 + rng.random() * 0.4)))),
-                        min(255, max(60, int(c1[1] * (0.2 + rng.random() * 0.2)))),
-                        min(60, int(c1[2] * rng.random() * 0.15)),
+                        max(0, min(255, int(c1[0] * (0.7 + rng.random() * 0.3)))),
+                        max(0, min(255, int(c1[1] * (0.5 + rng.random() * 0.3)))),
+                        max(0, min(255, int(c1[2] * (0.3 + rng.random() * 0.2)))),
                     ),
                     "brightness": int(brightness * (0.7 + rng.random() * 0.3)),
                     "transition": 0.1,

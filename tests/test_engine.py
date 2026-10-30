@@ -351,6 +351,45 @@ def test_compute_frame_rainbow() -> None:
 
 
 @pytest.mark.unit
+def test_compute_frame_fire_respects_primary_color() -> None:
+    """Fire effect must not clamp red/green/blue independently of the chosen primary color."""
+    engine = LightFXEngine(MagicMock(), MagicMock())
+    layout_id = engine.create_layout("Test")
+    engine.add_light(layout_id, "light.1", 0, 0)
+
+    ls = engine._get(layout_id)
+    # Use blue as primary color
+    ls.current_params = {
+        "color": (0, 0, 255),
+        "color2": (0, 0, 255),
+        "brightness": 200,
+        "speed": 50,
+        "transition": 0.5,
+        "direction": "forward",
+    }
+
+    reds = []
+    greens = []
+    blues = []
+    for tick in range(100):
+        frame = engine._compute_frame("fire", ls, tick)
+        rgb = frame["light.1"]["rgb_color"]
+        reds.append(rgb[0])
+        greens.append(rgb[1])
+        blues.append(rgb[2])
+
+    avg_red = sum(reds) / len(reds)
+    avg_green = sum(greens) / len(greens)
+    avg_blue = sum(blues) / len(blues)
+
+    # With blue primary, the fire should be blue-ish, not forced to deep red.
+    assert avg_blue > avg_red, (
+        f"Blue should dominate for blue primary: B={avg_blue:.1f}, R={avg_red:.1f}"
+    )
+    assert avg_blue > 30, f"Blue channel should not be clamped near 0: B={avg_blue:.1f}"
+
+
+@pytest.mark.unit
 def test_all_effects_in_const() -> None:
     """Test that EFFECTS list matches implemented effects."""
     # Ensure no effect is missing from the list
