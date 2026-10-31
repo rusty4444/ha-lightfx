@@ -40,6 +40,27 @@ HA LightFX lets you build virtual room layouts, place Home Assistant `light` ent
 | `wave` | HSV wave across the virtual x/y layout. | brightness, speed, direction |
 | `twinkle` | Random twinkling between two colors. | color, color2, brightness, speed |
 
+### Fire primary colour
+
+The fire effect flickers around the selected primary colour: a blue primary
+stays blue rather than being forced to red/orange. Mixed colours retain a warm
+bias; exact hue preservation is not guaranteed. Thanks to @Florim579 for the
+report in #45.
+
+## Development checks
+
+Use Python 3.13 with the matching Home Assistant test constraints:
+
+```bash
+python3.13 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-test.txt -c requirements-test-constraints.txt
+python -m compileall -q custom_components tests
+python -m pytest tests -q
+```
+
+The same regression suite runs on pull requests and pushes to `main`.
+
 ## Concepts
 
 ### Layouts
