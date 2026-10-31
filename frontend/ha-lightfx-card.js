@@ -9,7 +9,7 @@
 import { LitElement, html, css } from "lit";
 import { classMap } from "lit/directives/class-map.js";
 
-const CARD_VERSION = "1.1.13";
+const CARD_VERSION = "1.1.14";
 if (typeof window !== "undefined") {
   window.__haLightfxCardVersion = CARD_VERSION;
   console.debug("HA LightFX card loaded: v" + CARD_VERSION);
