@@ -1,0 +1,7 @@
+# Keep the Home Assistant test harness and its matching pytest plugin aligned.
+# Validated with Python 3.13; Python 3.12 resolves an older incompatible stack.
+homeassistant==2026.2.3
+pytest-homeassistant-custom-component==0.13.316
+pytest==9.0.0
+pytest-asyncio==1.3.0
+pytest-cov==7.0.0
