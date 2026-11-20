@@ -57,10 +57,11 @@ report in #45.
 
 ## Development checks
 
-Use Python 3.13 with the matching Home Assistant test constraints:
+Use Python 3.14 with the matching Home Assistant test constraints (Home
+Assistant 2026.7 requires Python ≥ 3.14.2):
 
 ```bash
-python3.13 -m venv .venv
+python3.14 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-test.txt -c requirements-test-constraints.txt
 python -m compileall -q custom_components tests
